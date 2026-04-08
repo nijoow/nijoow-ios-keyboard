@@ -170,6 +170,12 @@ class KeyboardViewController: UIInputViewController {
 
 
 
+  override func selectionWillChange(_ textInput: UITextInput?) {
+    super.selectionWillChange(textInput)
+    // 커서 이동 시 현재 조합 중인 글자를 확정합니다.
+    flushHangul()
+  }
+
   // MARK: - 전체 레이아웃 빌드
 
   private func buildKeyboard() {
@@ -603,15 +609,28 @@ class KeyboardViewController: UIInputViewController {
   private func handleBackspace() {
     if isHangul && !isSymbol {
       let result = automata.backspace()
+      
       if composingChar != nil {
-        textDocumentProxy.deleteBackward()
-        composingChar = nil
+        // 조합 중인 문자가 있는 경우
+        if !result.insert.isEmpty {
+          // 자모가 남았다면 markedText로 유지
+          textDocumentProxy.setMarkedText(result.insert, selectedRange: NSRange(location: result.insert.count, length: 0))
+          composingChar = result.insert.last
+        } else {
+          // 더 이상 조합할 게 없으면 삭제
+          textDocumentProxy.deleteBackward()
+          composingChar = nil
+        }
       } else {
-        for _ in 0..<result.deleteCount { textDocumentProxy.deleteBackward() }
-      }
-      if !result.insert.isEmpty {
-        textDocumentProxy.insertText(result.insert)
-        composingChar = result.insert.last
+        // 조합 중인 문자가 없는 경우 (일반 삭제)
+        for _ in 0..<result.deleteCount {
+          textDocumentProxy.deleteBackward()
+        }
+        // 혹시라도 결과에 삽입할 내용이 있다면 markedText로 시작
+        if !result.insert.isEmpty {
+          textDocumentProxy.setMarkedText(result.insert, selectedRange: NSRange(location: result.insert.count, length: 0))
+          composingChar = result.insert.last
+        }
       }
     } else {
       textDocumentProxy.deleteBackward()
@@ -806,17 +825,19 @@ class KeyboardViewController: UIInputViewController {
 
   private func insertVariant(_ selected: String) {
     if isHangul {
-      let result = automata.insert(char: Character(selected))
-      if composingChar != nil {
-        textDocumentProxy.deleteBackward()
+      let char = Character(selected)
+      _ = automata.backspace() // 기존 조합 중인 자모를 지우고 대체
+      let result = automata.input(char)
+      
+      if !result.commit.isEmpty {
+        textDocumentProxy.insertText(result.commit)
       }
-      for _ in 0..<result.deleteCount {
-        textDocumentProxy.deleteBackward()
-      }
-      if !result.insert.isEmpty {
-        textDocumentProxy.insertText(result.insert)
-        composingChar = result.insert.last
+      
+      if let current = result.current {
+        textDocumentProxy.setMarkedText(String(current), selectedRange: NSRange(location: 1, length: 0))
+        composingChar = current
       } else {
+        textDocumentProxy.unmarkText()
         composingChar = nil
       }
     } else {
@@ -966,25 +987,31 @@ class KeyboardViewController: UIInputViewController {
 
     let result = automata.input(jamo)
 
-    if composingChar != nil {
-      textDocumentProxy.deleteBackward()
-      composingChar = nil
+    // 1. commit이 있으면 삽입 (기존 markedText는 자동으로 대체됨)
+    if !result.commit.isEmpty {
+      textDocumentProxy.insertText(result.commit)
     }
-    if !result.commit.isEmpty { textDocumentProxy.insertText(result.commit) }
+
+    // 2. 새로운 조합 중인 문자가 있으면 markedText로 설정
     if let current = result.current {
-      textDocumentProxy.insertText(String(current))
+      textDocumentProxy.setMarkedText(String(current), selectedRange: NSRange(location: 1, length: 0))
       composingChar = current
+    } else {
+      // 조합 중인 문자가 없으면 초기화
+      textDocumentProxy.unmarkText()
+      composingChar = nil
     }
   }
 
   private func flushHangul() {
     guard isHangul else { return }
     let committed = automata.flush()
-    if composingChar != nil {
-      textDocumentProxy.deleteBackward()
-      composingChar = nil
+    if !committed.isEmpty {
+      textDocumentProxy.insertText(committed)
+    } else {
+      textDocumentProxy.unmarkText()
     }
-    if !committed.isEmpty { textDocumentProxy.insertText(committed) }
+    composingChar = nil
   }
 
   private func rebuildKeyboard() {
