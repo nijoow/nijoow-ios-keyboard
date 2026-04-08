@@ -33,22 +33,7 @@ private let SYM_ROW1_SHIFTED: [String] = ["○", "●", "□", "■", "←", "�
 private let SYM_ROW2_SHIFTED: [String] = ["_", "\\", "|", "~", "<", ">", "$", "￡", "￥", "•"]
 private let SYM_ROW3_SHIFTED: [String] = [".", ",", "♡", "☆", "?", "!", "'"]
 
-// MARK: - 이모지 배열
-
-private let COMMON_EMOJIS: [String] = [
-  "😀", "😂", "🥹", "😍", "🥰", "😊", "😎", "🤔",
-  "😅", "😭", "😱", "🤯", "🥺", "😏", "😒", "😡",
-  "👍", "👎", "👏", "🙏", "🤝", "✌️", "💪", "🤞",
-  "❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "💔",
-  "🔥", "⭐", "🌟", "✨", "💥", "🎉", "🎊", "🌈",
-  "🍎", "🍕", "🍔", "🍜", "🍣", "☕", "🍰", "🍫",
-  "🐶", "🐱", "🐰", "🐻", "🐼", "🐨", "🦊", "🐯",
-  "⚽", "🏀", "🎮", "🎲", "🚀", "✈️", "🚗", "💻",
-  "😆", "🤣", "🙂", "🙃", "😉", "😇", "🥳", "🤩",
-  "👋", "🤚", "🖐", "✋", "🤙", "👌", "🤌", "☝",
-  "💕", "💞", "💓", "💗", "💖", "💘", "💝", "❣️",
-  "🌸", "🌺", "🌹", "🌻", "🌼", "🍀", "🌿", "🌊"
-]
+// MARK: - 이모지 배열 (Now in EmojiProvider.swift)
 
 // MARK: - KeyButton
 
@@ -428,50 +413,9 @@ class KeyboardViewController: UIInputViewController {
   // MARK: - 이모지 패널
 
   private func makeEmojiPanel() -> UIView {
-    let scrollView = UIScrollView()
-    scrollView.showsVerticalScrollIndicator = true
-    scrollView.backgroundColor = .clear
-
-    let containerStack = UIStackView()
-    containerStack.axis = .vertical
-    containerStack.spacing = 7
-    containerStack.translatesAutoresizingMaskIntoConstraints = false
-    scrollView.addSubview(containerStack)
-
-    let cols = 8
-    var idx = 0
-    while idx < COMMON_EMOJIS.count {
-      let rowStack = UIStackView()
-      rowStack.axis = .horizontal
-      rowStack.distribution = .fillEqually
-      rowStack.spacing = 5
-
-      for i in idx..<min(idx + cols, COMMON_EMOJIS.count) {
-        let emoji = COMMON_EMOJIS[i]
-        let btn = UIButton(type: .system)
-        btn.setTitle(emoji, for: .normal)
-        btn.titleLabel?.font = UIFont.systemFont(ofSize: 26)
-        btn.backgroundColor = keyGlassColor
-        btn.layer.cornerRadius = 8
-        btn.layer.borderWidth = 0.5
-        btn.layer.borderColor = keyBorderColor
-        btn.accessibilityLabel = emoji
-        btn.addTarget(self, action: #selector(emojiKeyTapped(_:)), for: .touchUpInside)
-        rowStack.addArrangedSubview(btn)
-      }
-      containerStack.addArrangedSubview(rowStack)
-      idx += cols
-    }
-
-    NSLayoutConstraint.activate([
-      containerStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
-      containerStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-      containerStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
-      containerStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
-      containerStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor)
-    ])
-
-    return scrollView
+    let emojiView = EmojiKeyboardView(isDarkMode: self.isDarkMode)
+    emojiView.delegate = self
+    return emojiView
   }
 
   // MARK: - 글래스 버튼 팩토리
@@ -879,12 +823,6 @@ class KeyboardViewController: UIInputViewController {
     self.dismissKeyboard()
   }
 
-  @objc private func emojiKeyTapped(_ sender: UIButton) {
-    if let emoji = sender.accessibilityLabel {
-      textDocumentProxy.insertText(emoji)
-    }
-  }
-
   // MARK: - 한글 입력
 
   private func inputHangul(_ ch: Character) {
@@ -924,5 +862,17 @@ class KeyboardViewController: UIInputViewController {
 
   private func rebuildKeyboard() {
     buildKeyboard()
+  }
+}
+
+// MARK: - EmojiKeyboardViewDelegate
+
+extension KeyboardViewController: EmojiKeyboardViewDelegate {
+  func emojiKeyboardView(_ view: EmojiKeyboardView, didSelectEmoji emoji: String) {
+    textDocumentProxy.insertText(emoji)
+  }
+  
+  func emojiKeyboardViewDidTapBackspace(_ view: EmojiKeyboardView) {
+    textDocumentProxy.deleteBackward()
   }
 }
