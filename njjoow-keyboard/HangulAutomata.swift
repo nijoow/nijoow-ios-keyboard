@@ -223,18 +223,24 @@ class HangulAutomata {
       return (String(prevCho), jaeum)
 
     case .choJung(let cho, let jung):
-      state = .choJungJong(cho, jung, jaeum);
-      let syl = composeSyllable(cho, jung, jaeum) ?? jaeum;
-      return ("", syl)
+      if isValidJongseong(jaeum) {
+        state = .choJungJong(cho, jung, jaeum);
+        let syl = composeSyllable(cho, jung, jaeum)!;
+        return ("", syl)
+      } else {
+        let prevSyl = composeSyllable(cho, jung, "\0") ?? jung;
+        state = .cho(jaeum);
+        return (String(prevSyl), jaeum)
+      }
 
     case .choJungJong(let cho, let jung, let jong):
       if let compoundTable = COMPOUND_JONGSEONG[jong],
          let compound = compoundTable[jaeum] {
         state = .choJungJong(cho, jung, compound);
-        let syl = composeSyllable(cho, jung, compound) ?? compound;
+        let syl = composeSyllable(cho, jung, compound)!;
         return ("", syl)
       } else {
-        let prevSyl = composeSyllable(cho, jung, jong) ?? jong;
+        let prevSyl = composeSyllable(cho, jung, jong)!;
         state = .cho(jaeum);
         return (String(prevSyl), jaeum)
       }
