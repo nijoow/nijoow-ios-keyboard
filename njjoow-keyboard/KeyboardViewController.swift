@@ -281,10 +281,10 @@ class KeyboardViewController: UIInputViewController {
 
     // 커서 버튼 4방향
     let cursors: [(String, String)] = [
+      ("|◀", "cursor_line_start"),
       ("◀", "cursor_left"),
-      ("▲", "cursor_up"),
-      ("▼", "cursor_down"),
-      ("▶", "cursor_right")
+      ("▶", "cursor_right"),
+      ("▶|", "cursor_line_end")
     ]
     for (title, id) in cursors {
       let btn = makeGlassButton(title: title, id: id, isSpecial: true)
@@ -921,91 +921,37 @@ class KeyboardViewController: UIInputViewController {
     case "cursor_right":
       textDocumentProxy.adjustTextPosition(byCharacterOffset: 1)
 
-    case "cursor_up":
-      moveCursorUp()
+    case "cursor_line_start":
+      moveCursorToLineStart()
 
-    case "cursor_down":
-      moveCursorDown()
+    case "cursor_line_end":
+      moveCursorToLineEnd()
 
     default:
       break
     }
   }
 
-  /// 커서를 위 줄의 같은 열 위치로 이동
-  private func moveCursorUp() {
+  /// 커서를 해당 줄의 처음 위치로 이동
+  private func moveCursorToLineStart() {
     let before = textDocumentProxy.documentContextBeforeInput ?? ""
-
-    // 현재 줄에서 커서까지의 열 위치 계산
-    let currentCol: Int
     if let lastNlRange = before.range(of: "\n", options: .backwards) {
-      currentCol = before.distance(from: lastNlRange.upperBound, to: before.endIndex)
+      let distance = before.distance(from: lastNlRange.upperBound, to: before.endIndex)
+      textDocumentProxy.adjustTextPosition(byCharacterOffset: -distance)
     } else {
-      // 첫 번째 줄 → 맨 앞으로
       textDocumentProxy.adjustTextPosition(byCharacterOffset: -before.count)
-      return
     }
-
-    // 이전 줄 내용 추출 (마지막 \n 이전 텍스트)
-    let beforeLastNl = String(before[before.startIndex..<before.range(of: "\n", options: .backwards)!.lowerBound])
-
-    let prevLineStart: String.Index
-    if let prevNlRange = beforeLastNl.range(of: "\n", options: .backwards) {
-      prevLineStart = prevNlRange.upperBound
-    } else {
-      prevLineStart = beforeLastNl.startIndex
-    }
-    let prevLineLen = beforeLastNl.distance(from: prevLineStart, to: beforeLastNl.endIndex)
-    let targetCol = min(currentCol, prevLineLen)
-
-    // 이동량: 현재열 + \n(1) + (이전줄 길이 - 목표열)
-    let offset = -(currentCol + 1 + (prevLineLen - targetCol))
-    textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
   }
 
-  /// 커서를 아래 줄의 같은 열 위치로 이동
-  private func moveCursorDown() {
-    let before = textDocumentProxy.documentContextBeforeInput ?? ""
-    let after  = textDocumentProxy.documentContextAfterInput ?? ""
-
-    // 현재 줄에서 커서까지의 열 위치
-    let currentCol: Int
-    if let lastNlRange = before.range(of: "\n", options: .backwards) {
-      currentCol = before.distance(from: lastNlRange.upperBound, to: before.endIndex)
+  /// 커서를 해당 줄의 끝 위치로 이동
+  private func moveCursorToLineEnd() {
+    let after = textDocumentProxy.documentContextAfterInput ?? ""
+    if let firstNlIdx = after.firstIndex(of: "\n") {
+      let distance = after.distance(from: after.startIndex, to: firstNlIdx)
+      textDocumentProxy.adjustTextPosition(byCharacterOffset: distance)
     } else {
-      currentCol = before.count
-    }
-
-    // after에서 현재 줄 나머지 + 다음 줄 찾기
-    guard let firstNlIdx = after.firstIndex(of: "\n") else {
-      // 다음 줄 없음 → 맨 끝으로
       textDocumentProxy.adjustTextPosition(byCharacterOffset: after.count)
-      return
     }
-
-    // 현재 줄 나머지 길이 (커서 ~ 줄 끝)
-    let restOfCurrentLine = after.distance(from: after.startIndex, to: firstNlIdx)
-
-    // 다음 줄 내용 추출
-    let nextLineStart = after.index(after: firstNlIdx)
-    let nextLineContent: String
-    if nextLineStart < after.endIndex {
-      let remaining = String(after[nextLineStart...])
-      if let nextNlIdx = remaining.firstIndex(of: "\n") {
-        nextLineContent = String(remaining[remaining.startIndex..<nextNlIdx])
-      } else {
-        nextLineContent = remaining
-      }
-    } else {
-      nextLineContent = ""
-    }
-
-    let nextLineLen = nextLineContent.count
-    let targetCol = min(currentCol, nextLineLen)
-
-    // 이동량: 현재 줄 나머지 + \n(1) + 목표열
-    let offset = restOfCurrentLine + 1 + targetCol
-    textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
   }
 
   // MARK: - 이모지 / 닫기
