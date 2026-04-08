@@ -1,250 +1,271 @@
+//
+//  HangulAutomata.swift
+//  njjoow-keyboard
+//
+//  Created by 이우진 on 4/8/26.
+//
+
 import Foundation
 
+// MARK: - 한글 자모 정의
+
+/// 초성 목록 (19개)
+private let CHOSEONG: [Character] = [
+  "ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ",
+  "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"
+]
+
+/// 중성 목록 (21개)
+private let JUNGSEONG: [Character] = [
+  "ㅏ", "ㅐ", "ㅑ", "ㅒ", "ㅓ", "ㅔ", "ㅕ", "ㅖ", "ㅗ",
+  "ㅘ", "ㅙ", "ㅚ", "ㅛ", "ㅜ", "ㅝ", "ㅞ", "ㅟ", "ㅠ",
+  "ㅡ", "ㅢ", "ㅣ"
+]
+
+/// 종성 목록 (28개, 0번은 빈 종성)
+private let JONGSEONG: [Character] = [
+  "\0", "ㄱ", "ㄲ", "ㄳ", "ㄴ", "ㄵ", "ㄶ", "ㄷ", "ㄹ",
+  "ㄺ", "ㄻ", "ㄼ", "ㄽ", "ㄾ", "ㄿ", "ㅀ", "ㅁ", "ㅂ",
+  "ㅄ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"
+]
+
+// MARK: - 인덱스 헬퍼
+
+private func choseongIndex(_ ch: Character) -> Int? {
+  CHOSEONG.firstIndex(of: ch)
+}
+
+private func jungseongIndex(_ ch: Character) -> Int? {
+  JUNGSEONG.firstIndex(of: ch)
+}
+
+private func jongseongIndex(_ ch: Character) -> Int? {
+  JONGSEONG.firstIndex(of: ch)
+}
+
+// MARK: - 복합 중성 조합 테이블
+
+/// (중성A, 중성B) -> 복합 중성
+private let COMPOUND_JUNGSEONG: [Character: [Character: Character]] = [
+  "ㅗ": ["ㅏ": "ㅘ", "ㅐ": "ㅙ", "ㅣ": "ㅚ"],
+  "ㅜ": ["ㅓ": "ㅝ", "ㅔ": "ㅞ", "ㅣ": "ㅟ"],
+  "ㅡ": ["ㅣ": "ㅢ"]
+]
+
+/// 복합 중성 -> (중성A, 중성B) 분해
+private let DECOMPOSE_JUNGSEONG: [Character: (Character, Character)] = [
+  "ㅘ": ("ㅗ", "ㅏ"), "ㅙ": ("ㅗ", "ㅐ"), "ㅚ": ("ㅗ", "ㅣ"),
+  "ㅝ": ("ㅜ", "ㅓ"), "ㅞ": ("ㅜ", "ㅔ"), "ㅟ": ("ㅜ", "ㅣ"),
+  "ㅢ": ("ㅡ", "ㅣ")
+]
+
+// MARK: - 복합 종성 조합 테이블
+
+/// (종성A, 종성B) -> 복합 종성
+private let COMPOUND_JONGSEONG: [Character: [Character: Character]] = [
+  "ㄱ": ["ㅅ": "ㄳ"],
+  "ㄴ": ["ㅈ": "ㄵ", "ㅎ": "ㄶ"],
+  "ㄹ": ["ㄱ": "ㄺ", "ㅁ": "ㄻ", "ㅂ": "ㄼ", "ㅅ": "ㄽ", "ㅌ": "ㄾ", "ㅍ": "ㄿ", "ㅎ": "ㅀ"],
+  "ㅂ": ["ㅅ": "ㅄ"]
+]
+
+/// 복합 종성 -> (종성A, 종성B) 분해
+private let DECOMPOSE_JONGSEONG: [Character: (Character, Character)] = [
+  "ㄳ": ("ㄱ", "ㅅ"), "ㄵ": ("ㄴ", "ㅈ"), "ㄶ": ("ㄴ", "ㅎ"),
+  "ㄺ": ("ㄹ", "ㄱ"), "ㄻ": ("ㄹ", "ㅁ"), "ㄼ": ("ㄹ", "ㅂ"),
+  "ㄽ": ("ㄹ", "ㅅ"), "ㄾ": ("ㄹ", "ㅌ"), "ㄿ": ("ㄹ", "ㅍ"),
+  "ㅀ": ("ㄹ", "ㅎ"), "ㅄ": ("ㅂ", "ㅅ")
+]
+
+// MARK: - 자모 분류
+
+func isValidChoseong(_ ch: Character) -> Bool {
+  CHOSEONG.contains(ch)
+}
+
+func isValidJungseong(_ ch: Character) -> Bool {
+  JUNGSEONG.contains(ch)
+}
+
+func isValidJongseong(_ ch: Character) -> Bool {
+  JONGSEONG.dropFirst().contains(ch)
+}
+
+// MARK: - 음절 조합 / 분해
+
+/// 초성+중성+종성 -> 완성형 음절
+func composeSyllable(_ cho: Character, _ jung: Character, _ jong: Character) -> Character? {
+  guard let ci = choseongIndex(cho),
+        let ji = jungseongIndex(jung),
+        let joi = jongseongIndex(jong) else { return nil }
+  let value = 0xAC00 + (ci * 21 + ji) * 28 + joi;
+  guard let scalar = Unicode.Scalar(value) else { return nil }
+  return Character(scalar)
+}
+
+// MARK: - HangulAutomata
+
+/// 한글 입력 오토마타 상태
+enum HangulState {
+  case empty
+  case cho(Character)
+  case choJung(Character, Character)
+  case choJungJong(Character, Character, Character)
+}
+
 class HangulAutomata {
-    // Unicode Constants
-    private let HANGUL_BASE: Int = 0xAC00
-    private let CHO_BASE: Int = 0x1100
-    private let JUNG_BASE: Int = 0x1161
-    private let JONG_BASE: Int = 0x11A7
-    
-    // Jamo Lists
-    private let choList = ["ㄱ", "ㄲ", "ㄴ", "ㄷ", "ㄸ", "ㄹ", "ㅁ", "ㅂ", "ㅃ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅉ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"]
-    private let jungList = ["ㅏ", "ㅐ", "ㅑ", "ㅒ", "ㅓ", "ㅔ", "ㅕ", "ㅖ", "ㅗ", "ㅘ", "ㅙ", "ㅚ", "ㅛ", "ㅜ", "ㅝ", "ㅞ", "ㅟ", "ㅠ", "ㅡ", "ㅢ", "ㅣ"]
-    private let jongList = ["", "ㄱ", "ㄲ", "ㄳ", "ㄴ", "ㄵ", "ㄶ", "ㄷ", "ㄹ", "ㄺ", "ㄻ", "ㄼ", "ㄽ", "ㄾ", "ㄿ", "ㅀ", "ㅁ", "ㅂ", "ㅄ", "ㅅ", "ㅆ", "ㅇ", "ㅈ", "ㅊ", "ㅋ", "ㅌ", "ㅍ", "ㅎ"]
 
-    // State
-    enum State {
-        case empty
-        case cho
-        case jung
-        case jong
-    }
-    
-    private var currentState: State = .empty
-    private var choIdx: Int = -1
-    private var jungIdx: Int = -1
-    private var jongIdx: Int = 0
-    
-    // For handling double vowels/consonants
-    private var lastJungIdx: Int = -1
-    private var lastJongIdx: Int = -1
+  private var state: HangulState = .empty
 
-    func insert(_ jamo: String) -> (text: String, deleteCount: Int) {
-        if choList.contains(jamo) {
-            return handleConsonant(jamo)
-        } else if jungList.contains(jamo) {
-            return handleVowel(jamo)
-        }
-        return (jamo, 0)
+  /// 현재 조합 중인 음절 (문자열, 없으면 nil)
+  var currentChar: Character? {
+    switch state {
+    case .empty:
+      return nil
+    case .cho(let cho):
+      return cho
+    case .choJung(let cho, let jung):
+      return composeSyllable(cho, jung, "\0") ?? jung
+    case .choJungJong(let cho, let jung, let jong):
+      return composeSyllable(cho, jung, jong) ?? jong
     }
+  }
 
-    private func handleConsonant(_ jamo: String) -> (String, Int) {
-        let idx = choList.firstIndex(of: jamo) ?? -1
-        
-        switch currentState {
-        case .empty:
-            choIdx = idx
-            currentState = .cho
-            return (jamo, 0)
-            
-        case .cho:
-            // Previous was a consonant, if current is also consonant, commit previous and start new
-            choIdx = idx
-            return (jamo, 0)
-            
-        case .jung:
-            // Previous was CHOSEONG + JUNGSEONG, current is CONSONANT -> could be JONGSEONG
-            let jongIndex = jongList.firstIndex(of: jamo) ?? 0
-            if jongIndex > 0 {
-                jongIdx = jongIndex
-                currentState = .jong
-                return (compose(), 1)
-            } else {
-                // Not a valid JONGSEONG (e.g. ㄸ, ㅃ, ㅉ)
-                reset()
-                choIdx = idx
-                currentState = .cho
-                return (jamo, 0)
-            }
-            
-        case .jong:
-            // Previous was CHOSEONG + JUNGSEONG + JONGSEONG
-            // Check if current consonant can combine with previous JONGSEONG
-            if let combinedIdx = combineJong(first: jongIdx, second: jamo) {
-                jongIdx = combinedIdx
-                return (compose(), 1)
-            } else {
-                // Cannot combine, commit current and start new CHO
-                reset()
-                choIdx = idx
-                currentState = .cho
-                return (jamo, 0)
-            }
-        }
-    }
+  /// 오토마타 초기화
+  func reset() {
+    state = .empty;
+  }
 
-    private func handleVowel(_ jamo: String) -> (String, Int) {
-        let idx = jungList.firstIndex(of: jamo) ?? -1
-        
-        switch currentState {
-        case .empty:
-            currentState = .jung
-            jungIdx = idx
-            return (jamo, 0)
-            
-        case .cho:
-            // CHOSEONG + VOWEL = Syllable
-            jungIdx = idx
-            currentState = .jung
-            return (compose(), 1)
-            
-        case .jung:
-            // VOWEL + VOWEL -> check combination
-            if let combinedIdx = combineJung(first: jungIdx, second: jamo) {
-                jungIdx = combinedIdx
-                return (composeJungOnly(), 1)
-            } else {
-                reset()
-                jungIdx = idx
-                currentState = .jung
-                return (jamo, 0)
-            }
-            
-        case .jong:
-            // CHOSEONG + JUNGSEONG + JONGSEONG + VOWEL
-            // JONGSEONG must move to next syllable as CHOSEONG
-            let prevJamo = jongList[jongIdx]
-            let (newCho, remains) = splitJong(jongIdx)
-            
-            if remains > 0 {
-                // Composite JONGSEONG (e.g., ㄳ -> ㄱ goes to prev, ㅅ goes to next)
-                jongIdx = remains
-                let firstPart = compose()
-                
-                reset()
-                choIdx = choList.firstIndex(of: newCho) ?? -1
-                jungIdx = idx
-                currentState = .jung
-                return (firstPart + compose(), 2)
-            } else {
-                // Single JONGSEONG (e.g., ㄱ -> ㄱ goes to next)
-                let firstPart = composeWithoutJong()
-                reset()
-                choIdx = choList.firstIndex(of: prevJamo) ?? -1
-                jungIdx = idx
-                currentState = .jung
-                return (firstPart + compose(), 2)
-            }
-        }
-    }
-    
-    func delete() -> (text: String, deleteCount: Int) {
-        switch currentState {
-        case .empty:
-            return ("", 0)
-        case .cho:
-            reset()
-            return ("", 1)
-        case .jung:
-            if choIdx != -1 {
-                // Was syllable, now only Cho
-                currentState = .cho
-                jungIdx = -1
-                return (choList[choIdx], 1)
-            } else {
-                reset()
-                return ("", 1)
-            }
-        case .jong:
-            let (_, remains) = splitJong(jongIdx)
-            if remains > 0 {
-                // Was composite Jong, now single Jong
-                jongIdx = remains
-                return (compose(), 1)
-            } else {
-                // Was single Jong, now only Cho + Jung
-                jongIdx = 0
-                currentState = .jung
-                return (compose(), 1)
-            }
-        }
-    }
+  // MARK: - 입력 처리
 
-    private func compose() -> String {
-        if choIdx != -1 && jungIdx != -1 {
-            let code = HANGUL_BASE + (choIdx * 588) + (jungIdx * 28) + jongIdx
-            if let scalar = UnicodeScalar(code) {
-                return String(Character(scalar))
-            }
-        }
-        return ""
+  /// 자모 입력. 반환: (확정 문자열, 새로운 조합중 음절)
+  func input(_ jamo: Character) -> (commit: String, current: Character?) {
+    if isValidJungseong(jamo) {
+      return inputJungseong(jamo);
+    } else if isValidChoseong(jamo) || isValidJongseong(jamo) {
+      return inputJaeum(jamo);
+    } else {
+      let committed = flushAll();
+      return (committed + String(jamo), nil);
     }
-    
-    private func composeWithoutJong() -> String {
-        let code = HANGUL_BASE + (choIdx * 588) + (jungIdx * 28)
-        if let scalar = UnicodeScalar(code) {
-            return String(Character(scalar))
-        }
-        return ""
-    }
-    
-    private func composeJungOnly() -> String {
-        return jungList[jungIdx]
-    }
+  }
 
-    private func reset() {
-        currentState = .empty
-        choIdx = -1
-        jungIdx = -1
-        jongIdx = 0
-    }
+  /// 백스페이스 처리. 반환: (삭제할 문자 수, 새로 삽입할 문자열)
+  func backspace() -> (deleteCount: Int, insert: String) {
+    switch state {
+    case .empty:
+      return (1, "")
 
-    // Helper: Combine vowels (ㅗ + ㅏ = ㅘ, etc.)
-    private func combineJung(first: Int, second: String) -> Int? {
-        let f = jungList[first]
-        if f == "ㅗ" && second == "ㅏ" { return jungList.firstIndex(of: "ㅘ") }
-        if f == "ㅗ" && second == "ㅐ" { return jungList.firstIndex(of: "ㅙ") }
-        if f == "ㅗ" && second == "ㅣ" { return jungList.firstIndex(of: "ㅚ") }
-        if f == "ㅜ" && second == "ㅓ" { return jungList.firstIndex(of: "ㅝ") }
-        if f == "ㅜ" && second == "ㅔ" { return jungList.firstIndex(of: "ㅞ") }
-        if f == "ㅜ" && second == "ㅣ" { return jungList.firstIndex(of: "ㅟ") }
-        if f == "ㅡ" && second == "ㅣ" { return jungList.firstIndex(of: "ㅢ") }
-        return nil
-    }
+    case .cho:
+      state = .empty;
+      return (1, "")
 
-    // Helper: Combine final consonants (ㄱ + ㅅ = ㄳ, etc.)
-    private func combineJong(first: Int, second: String) -> Int? {
-        let f = jongList[first]
-        if f == "ㄱ" && second == "ㅅ" { return jongList.firstIndex(of: "ㄳ") }
-        if f == "ㄴ" && second == "ㅈ" { return jongList.firstIndex(of: "ㄵ") }
-        if f == "ㄴ" && second == "ㅎ" { return jongList.firstIndex(of: "ㄶ") }
-        if f == "ㄹ" && second == "ㄱ" { return jongList.firstIndex(of: "ㄺ") }
-        if f == "ㄹ" && second == "ㅁ" { return jongList.firstIndex(of: "ㄻ") }
-        if f == "ㄹ" && second == "ㅂ" { return jongList.firstIndex(of: "ㄼ") }
-        if f == "ㄹ" && second == "ㅅ" { return jongList.firstIndex(of: "ㄽ") }
-        if f == "ㄹ" && second == "ㅌ" { return jongList.firstIndex(of: "ㄾ") }
-        if f == "ㄹ" && second == "ㅍ" { return jongList.firstIndex(of: "ㄿ") }
-        if f == "ㄹ" && second == "ㅎ" { return jongList.firstIndex(of: "ㅀ") }
-        if f == "ㅂ" && second == "ㅅ" { return jongList.firstIndex(of: "ㅄ") }
-        return nil
-    }
+    case .choJung(let cho, let jung):
+      if let (j1, _) = DECOMPOSE_JUNGSEONG[jung] {
+        state = .choJung(cho, j1);
+        let newSyl = composeSyllable(cho, j1, "\0") ?? j1;
+        return (1, String(newSyl))
+      } else {
+        state = .cho(cho);
+        return (1, String(cho))
+      }
 
-    // Helper: Split composite Jong (ㄳ -> ㅅ, remains ㄱ)
-    private func splitJong(_ idx: Int) -> (newCho: String, remains: Int) {
-        let j = jongList[idx]
-        switch j {
-        case "ㄳ": return ("ㅅ", jongList.firstIndex(of: "ㄱ")!)
-        case "ㄵ": return ("ㅈ", jongList.firstIndex(of: "ㄴ")!)
-        case "ㄶ": return ("ㅎ", jongList.firstIndex(of: "ㄴ")!)
-        case "ㄺ": return ("ㄱ", jongList.firstIndex(of: "ㄹ")!)
-        case "ㄻ": return ("ㅁ", jongList.firstIndex(of: "ㄹ")!)
-        case "ㄼ": return ("ㅂ", jongList.firstIndex(of: "ㄹ")!)
-        case "ㄽ": return ("ㅅ", jongList.firstIndex(of: "ㄹ")!)
-        case "ㄾ": return ("ㅌ", jongList.firstIndex(of: "ㄹ")!)
-        case "ㄿ": return ("ㅍ", jongList.firstIndex(of: "ㄹ")!)
-        case "ㅀ": return ("ㅎ", jongList.firstIndex(of: "ㄹ")!)
-        case "ㅄ": return ("ㅅ", jongList.firstIndex(of: "ㅂ")!)
-        default: return ("", 0)
-        }
+    case .choJungJong(let cho, let jung, let jong):
+      if let (j1, _) = DECOMPOSE_JONGSEONG[jong] {
+        state = .choJungJong(cho, jung, j1);
+        let newSyl = composeSyllable(cho, jung, j1) ?? j1;
+        return (1, String(newSyl))
+      } else {
+        state = .choJung(cho, jung);
+        let newSyl = composeSyllable(cho, jung, "\0") ?? jung;
+        return (1, String(newSyl))
+      }
     }
+  }
+
+  /// 현재 조합 중인 음절을 확정하고 상태 초기화. 반환: 확정된 문자열
+  func flush() -> String {
+    let result = flushAll();
+    state = .empty;
+    return result
+  }
+
+  // MARK: - Private
+
+  private func flushAll() -> String {
+    guard let ch = currentChar else {
+      state = .empty;
+      return ""
+    }
+    state = .empty;
+    return String(ch)
+  }
+
+  private func inputJaeum(_ jaeum: Character) -> (commit: String, current: Character?) {
+    switch state {
+    case .empty:
+      state = .cho(jaeum);
+      return ("", jaeum)
+
+    case .cho(let prevCho):
+      state = .cho(jaeum);
+      return (String(prevCho), jaeum)
+
+    case .choJung(let cho, let jung):
+      state = .choJungJong(cho, jung, jaeum);
+      let syl = composeSyllable(cho, jung, jaeum) ?? jaeum;
+      return ("", syl)
+
+    case .choJungJong(let cho, let jung, let jong):
+      if let compoundTable = COMPOUND_JONGSEONG[jong],
+         let compound = compoundTable[jaeum] {
+        state = .choJungJong(cho, jung, compound);
+        let syl = composeSyllable(cho, jung, compound) ?? compound;
+        return ("", syl)
+      } else {
+        let prevSyl = composeSyllable(cho, jung, jong) ?? jong;
+        state = .cho(jaeum);
+        return (String(prevSyl), jaeum)
+      }
+    }
+  }
+
+  private func inputJungseong(_ moeum: Character) -> (commit: String, current: Character?) {
+    switch state {
+    case .empty:
+      // 단독 모음 삽입
+      state = .empty;
+      return (String(moeum), nil)
+
+    case .cho(let cho):
+      state = .choJung(cho, moeum);
+      let syl = composeSyllable(cho, moeum, "\0") ?? moeum;
+      return ("", syl)
+
+    case .choJung(let cho, let jung):
+      if let compoundTable = COMPOUND_JUNGSEONG[jung],
+         let compound = compoundTable[moeum] {
+        state = .choJung(cho, compound);
+        let syl = composeSyllable(cho, compound, "\0") ?? compound;
+        return ("", syl)
+      } else {
+        let prevSyl = composeSyllable(cho, jung, "\0") ?? jung;
+        state = .empty;
+        return (String(prevSyl) + String(moeum), nil)
+      }
+
+    case .choJungJong(let cho, let jung, let jong):
+      if let (j1, j2) = DECOMPOSE_JONGSEONG[jong] {
+        let prevSyl = composeSyllable(cho, jung, j1) ?? j1;
+        state = .choJung(j2, moeum);
+        let newSyl = composeSyllable(j2, moeum, "\0") ?? moeum;
+        return (String(prevSyl), newSyl)
+      } else {
+        let prevSyl = composeSyllable(cho, jung, "\0") ?? jung;
+        state = .choJung(jong, moeum);
+        let newSyl = composeSyllable(jong, moeum, "\0") ?? moeum;
+        return (String(prevSyl), newSyl)
+      }
+    }
+  }
 }
