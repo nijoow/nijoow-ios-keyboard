@@ -190,6 +190,17 @@ class HangulAutomata {
     return result
   }
 
+  /// 특정 자모로 현재 조합 상태를 교체하거나 삽입합니다.
+  func insert(char: Character) -> (deleteCount: Int, insert: String) {
+    // 현재 조합 중인 상태에서 마지막 요소를 제거하고 새 자모를 입력하여 교체 효과를 냅니다.
+    // KeyboardViewController에서 composingChar를 이미 삭제하므로 내부 상태만 조정하고 추가 삭제가 필요한 경우만 deleteCount를 반환합니다.
+    _ = backspace()
+    let res = input(char)
+    
+    // 이미 VC에서 composingChar를 지웠으므로 추가 삭제는 0으로 반환합니다.
+    return (0, res.commit + (res.current.map { String($0) } ?? ""))
+  }
+
   // MARK: - Private
 
   private func flushAll() -> String {

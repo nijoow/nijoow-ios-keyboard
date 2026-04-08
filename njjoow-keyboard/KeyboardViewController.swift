@@ -71,6 +71,12 @@ class KeyboardViewController: UIInputViewController {
   private var allKeyButtons: [KeyButton] = []
   private var shiftButton: KeyButton?
 
+  // MARK: 팝업 상태 (Long Press)
+  private var popupView: UIView?
+  private var popupLabels: [UILabel] = []
+  private var popupItems: [String] = []
+  private var popupSelectedIndex: Int = -1
+
   // MARK: 레이아웃 상수
 
   private let UTIL_ROW_H: CGFloat = 34   
@@ -94,14 +100,14 @@ class KeyboardViewController: UIInputViewController {
   private var keyGlassColor: UIColor {
     return isDarkMode
       ? UIColor(white: 1.0, alpha: 0.14)
-      : UIColor(white: 1.0, alpha: 0.65)
+      : UIColor(white: 1.0, alpha: 0.28)
   }
 
   /// 특수 키 배경 (더 어두운 유리)
   private var specialGlassColor: UIColor {
     return isDarkMode
       ? UIColor(white: 1.0, alpha: 0.06)
-      : UIColor(white: 0.85, alpha: 0.6)
+      : UIColor(white: 0.95, alpha: 0.45)
   }
 
   /// 활성화된 시프트 배경
@@ -497,6 +503,9 @@ class KeyboardViewController: UIInputViewController {
     // 액션
     if !isSpecial {
       btn.addTarget(self, action: #selector(letterTapped(_:)), for: .touchUpInside)
+      let lp = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+      lp.minimumPressDuration = 0.4
+      btn.addGestureRecognizer(lp)
     }
 
     allKeyButtons.append(btn)
@@ -577,6 +586,187 @@ class KeyboardViewController: UIInputViewController {
   @objc private func enterTapped() {
     flushHangul()
     textDocumentProxy.insertText("\n")
+  }
+
+  // MARK: - 롱프레스 팝업 (Long Press)
+
+  private func getVariants(for char: String) -> [String] {
+    if isHangul {
+      switch char {
+      case "ㅂ": return ["ㅂ", "ㅃ"]
+      case "ㅈ": return ["ㅈ", "ㅉ"]
+      case "ㄷ": return ["ㄷ", "ㄸ"]
+      case "ㄱ": return ["ㄱ", "ㄲ"]
+      case "ㅅ": return ["ㅅ", "ㅆ"]
+      case "ㅐ": return ["ㅐ", "ㅒ"]
+      case "ㅔ": return ["ㅔ", "ㅖ"]
+        
+      case "ㅃ": return ["ㅃ", "ㅂ"]
+      case "ㅉ": return ["ㅉ", "ㅈ"]
+      case "ㄸ": return ["ㄸ", "ㄷ"]
+      case "ㄲ": return ["ㄲ", "ㄱ"]
+      case "ㅆ": return ["ㅆ", "ㅅ"]
+      case "ㅒ": return ["ㅒ", "ㅐ"]
+      case "ㅖ": return ["ㅖ", "ㅔ"]
+
+      default: return [char]
+      }
+    } else if !isSymbol && !isEmoji {
+      // 영문
+      let isUpper = char == char.uppercased()
+      let lower = char.lowercased()
+      let upper = char.uppercased()
+      
+      // 알파벳인지 확인
+      if lower != upper {
+        if isUpper {
+          return [upper, lower]
+        } else {
+          return [lower, upper]
+        }
+      }
+      return [char]
+    }
+    return [char]
+  }
+
+  @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+    guard let btn = gesture.view as? KeyButton else { return }
+    let char = letterLabel(for: btn.keyValue.first!) // Shift가 켜진 상태라면 대문자/쌍자음 기반으로 파생
+    
+    switch gesture.state {
+    case .began:
+      let variants = getVariants(for: char)
+      if variants.count <= 1 {
+          gesture.state = .failed
+          return
+      }
+      showPopup(for: btn, variants: variants)
+      updatePopupSelection(touchLocationInView: gesture.location(in: self.view))
+    case .changed:
+      updatePopupSelection(touchLocationInView: gesture.location(in: self.view))
+    case .ended:
+      if popupSelectedIndex >= 0 && popupSelectedIndex < popupItems.count {
+          let selected = popupItems[popupSelectedIndex]
+          insertVariant(selected)
+      }
+      hidePopup()
+    case .cancelled, .failed:
+      hidePopup()
+    default:
+      break
+    }
+  }
+
+  private func showPopup(for btn: KeyButton, variants: [String]) {
+    hidePopup()
+    
+    popupItems = variants
+    popupSelectedIndex = -1
+    
+    let popup = UIView()
+    popup.layer.cornerRadius = 10
+    popup.layer.shadowColor = UIColor.black.cgColor
+    popup.layer.shadowOpacity = isDarkMode ? 0.5 : 0.2
+    popup.layer.shadowRadius = 4
+    popup.layer.shadowOffset = CGSize(width: 0, height: 2)
+
+    let blurStyle: UIBlurEffect.Style = isDarkMode ? .systemMaterialDark : .systemMaterialLight
+    let blur = UIVisualEffectView(effect: UIBlurEffect(style: blurStyle))
+    blur.layer.cornerRadius = 10
+    blur.layer.masksToBounds = true
+    popup.addSubview(blur)
+    
+    let btnFrame = btn.convert(btn.bounds, to: self.view)
+    let itemWidth: CGFloat = max(btnFrame.width * 1.2, 40)
+    let itemHeight: CGFloat = btnFrame.height * 1.2
+    
+    popup.frame = CGRect(
+        x: btnFrame.midX - (CGFloat(variants.count) * itemWidth) / 2,
+        y: btnFrame.minY - itemHeight - 8,
+        width: CGFloat(variants.count) * itemWidth,
+        height: itemHeight
+    )
+    
+    if popup.frame.minX < 5 {
+        popup.frame.origin.x = 5
+    } else if popup.frame.maxX > self.view.bounds.width - 5 {
+        popup.frame.origin.x = self.view.bounds.width - 5 - popup.frame.width
+    }
+    
+    blur.frame = popup.bounds
+    
+    for (i, v) in variants.enumerated() {
+        let lbl = UILabel(frame: CGRect(x: CGFloat(i) * itemWidth, y: 0, width: itemWidth, height: itemHeight))
+        lbl.text = v
+        lbl.font = UIFont.systemFont(ofSize: KEY_FONT_SIZE + 4, weight: .medium)
+        lbl.textAlignment = .center
+        lbl.textColor = keyTextColor
+        lbl.layer.cornerRadius = 6
+        lbl.layer.masksToBounds = true
+        popup.addSubview(lbl)
+        popupLabels.append(lbl)
+    }
+    
+    self.view.addSubview(popup)
+    self.popupView = popup
+  }
+
+  private func updatePopupSelection(touchLocationInView: CGPoint) {
+    guard let popup = popupView, !popupItems.isEmpty else { return }
+    
+    let localX = touchLocationInView.x - popup.frame.minX
+    let itemWidth = popup.bounds.width / CGFloat(popupItems.count)
+    var newIdx = Int(localX / itemWidth)
+    
+    if newIdx < 0 { newIdx = 0 }
+    if newIdx >= popupItems.count { newIdx = popupItems.count - 1 }
+    
+    popupSelectedIndex = newIdx
+    
+    for (i, lbl) in popupLabels.enumerated() {
+        if i == popupSelectedIndex {
+            lbl.backgroundColor = activeGlassColor
+            lbl.textColor = isDarkMode ? .white : .black
+        } else {
+            lbl.backgroundColor = .clear
+            lbl.textColor = keyTextColor
+        }
+    }
+  }
+
+  private func hidePopup() {
+    popupView?.removeFromSuperview()
+    popupView = nil
+    popupLabels.removeAll()
+    popupItems.removeAll()
+    popupSelectedIndex = -1
+  }
+
+  private func insertVariant(_ selected: String) {
+    if isHangul {
+      let result = automata.insert(char: Character(selected))
+      if composingChar != nil {
+        textDocumentProxy.deleteBackward()
+      }
+      for _ in 0..<result.deleteCount {
+        textDocumentProxy.deleteBackward()
+      }
+      if !result.insert.isEmpty {
+        textDocumentProxy.insertText(result.insert)
+        composingChar = result.insert.last
+      } else {
+        composingChar = nil
+      }
+    } else {
+      textDocumentProxy.insertText(selected)
+    }
+    
+    // shift 1회용 해제
+    if isShifted {
+        isShifted = false
+        rebuildKeyboard()
+    }
   }
 
   // MARK: - 커서 이동 (정확한 줄 이동)
