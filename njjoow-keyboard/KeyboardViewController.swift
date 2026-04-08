@@ -25,13 +25,13 @@ private let HANGUL_SHIFT_MAP: [Character: Character] = [
 
 // MARK: - 기호 배열
 
-private let SYM_ROW1_NORMAL: [String]  = ["[", "]", "{", "}", "#", "%", "^", "*", "+", "="]
-private let SYM_ROW2_NORMAL: [String]  = ["-", "/", ":", ";", "(", ")", "₩", "&", "@", "\""]
-private let SYM_ROW3_NORMAL: [String]  = [".", ",", "♥", "★", "?", "!", "'"]
+private let SYM_ROW1_NORMAL: [String]  = ["(", ")", "[", "]", "{", "}", "<", ">", "\"", "'"]
+private let SYM_ROW2_NORMAL: [String]  = ["@", "#", "+", "-", "*", "×", "÷", "%", "/", "^"]
+private let SYM_ROW3_NORMAL: [String]  = ["~", ",", ":", ";", "_", "?", "!"]
 
-private let SYM_ROW1_SHIFTED: [String] = ["○", "●", "□", "■", "←", "↑", "↓", "→", "↔", "÷"]
-private let SYM_ROW2_SHIFTED: [String] = ["_", "\\", "|", "~", "<", ">", "$", "￡", "￥", "•"]
-private let SYM_ROW3_SHIFTED: [String] = [".", ",", "♡", "☆", "?", "!", "'"]
+private let SYM_ROW1_SHIFTED: [String] = ["○", "●", "□", "■", "←", "↑", "↓", "→", "↔", "·"]
+private let SYM_ROW2_SHIFTED: [String] = ["₩", "$", "=", "≠", "≤", "≥", "&", "|", "\\", "°"]
+private let SYM_ROW3_SHIFTED: [String] = ["♡", "♥", "☆", "★", "♪", "…", "✓"]
 
 // MARK: - 이모지 배열
 
@@ -64,6 +64,7 @@ class KeyboardViewController: UIInputViewController {
 
   private var isHangul: Bool = false
   private var isShifted: Bool = false
+  private var isShiftLocked: Bool = false
   private var isSymbol: Bool = false
   private var isEmoji: Bool = false
   private var automata = HangulAutomata()
@@ -80,6 +81,7 @@ class KeyboardViewController: UIInputViewController {
   // MARK: - Backspace 빠른 지우기 및 햅틱
   private var backspaceStartTimer: Timer?
   private var backspaceTimer: Timer?
+  private var backspaceRepeatCount: Int = 0 
   private let hapticGenerator = UIImpactFeedbackGenerator(style: .light)
 
   // MARK: 레이아웃 상수
@@ -87,7 +89,7 @@ class KeyboardViewController: UIInputViewController {
   private let UTIL_ROW_H: CGFloat = 34   
   private let KEY_FONT_SIZE: CGFloat = 20 
   private let NUMBER_ROW_H: CGFloat = 38
-  private let MAIN_KEY_H: CGFloat = 46
+  private let MAIN_KEY_H: CGFloat = 42
   private let BOTTOM_ROW_H: CGFloat = 38
   private let CORNER_RADIUS: CGFloat = 8
 
@@ -139,6 +141,7 @@ class KeyboardViewController: UIInputViewController {
   }
 
   private var wasEmoji = false // 이모지 전환 감지용
+  private var wasSymbol = false // 기호 전환 감지용
 
   // MARK: - Lifecycle
 
@@ -241,8 +244,8 @@ class KeyboardViewController: UIInputViewController {
         let row2 = isShifted ? SYM_ROW2_SHIFTED : SYM_ROW2_NORMAL
         let row3 = isShifted ? SYM_ROW3_SHIFTED : SYM_ROW3_NORMAL
         
-        let v1 = makeEqualRow(keys: row1)
-        let v2 = makeEqualRow(keys: row2)
+        let v1 = makeEqualRow(keys: row1, rowOffset: 400)
+        let v2 = makeEqualRow(keys: row2, rowOffset: 500)
         let v3 = makeShiftRow(middleKeys: row3, keyValues: row3, rowOffset: 600)
         
         [v1, v2, v3].forEach {
@@ -286,7 +289,7 @@ class KeyboardViewController: UIInputViewController {
 
     // 이모지 토글
     let emojiBtn = makeGlassButton(title: "☻", id: "emoji", isSpecial: true)
-    emojiBtn.titleLabel?.font = UIFont.systemFont(ofSize: 22)
+    emojiBtn.titleLabel?.font = UIFont.systemFont(ofSize: 24)
     if isEmoji { emojiBtn.backgroundColor = activeGlassColor }
     emojiBtn.addTarget(self, action: #selector(emojiTapped), for: .touchUpInside)
     stack.addArrangedSubview(emojiBtn)
@@ -356,10 +359,25 @@ class KeyboardViewController: UIInputViewController {
   private func makeShiftRow(middleKeys: [String], keyValues: [String], rowOffset: Int) -> UIView {
     let container = UIView()
 
-    let shiftTitle = isShifted ? "⇪" : "⇧"
+    let shiftTitle: String
+    if isShiftLocked {
+      shiftTitle = "⇪"
+    } else {
+      shiftTitle = "⇧"
+    }
+    
     let shiftBtn = makeGlassButton(title: shiftTitle, id: "shift", isSpecial: true, tag: 699)
     shiftBtn.addTarget(self, action: #selector(shiftTapped), for: .touchUpInside)
-    if isShifted { shiftBtn.backgroundColor = activeGlassColor }
+    
+    if isShifted {
+       if isShiftLocked {
+         shiftBtn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.8) : UIColor(white: 0.0, alpha: 0.7)
+         shiftBtn.setTitleColor(isDarkMode ? .black : .white, for: .normal)
+       } else {
+         shiftBtn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.4) : UIColor(white: 0.0, alpha: 0.3)
+         shiftBtn.setTitleColor(.white, for: .normal)
+       }
+    }
     shiftButton = shiftBtn
 
     let bsBtn = makeGlassButton(title: "⌫", id: "backspace", isSpecial: true, tag: 698)
@@ -566,11 +584,12 @@ class KeyboardViewController: UIInputViewController {
     if isHangul && ch.isLetter && !isSymbol {
       inputHangul(ch)
     } else {
+      flushHangul()
       let toInsert = (ch.isLetter && isShifted && !isSymbol) ? key.uppercased() : key
       textDocumentProxy.insertText(toInsert)
     }
 
-    if isShifted {
+    if isShifted && !isShiftLocked {
       isShifted = false
       rebuildKeyboard()
     }
@@ -578,7 +597,26 @@ class KeyboardViewController: UIInputViewController {
 
   @objc private func shiftTapped() {
     hapticGenerator.impactOccurred()
-    isShifted.toggle()
+    
+    if isSymbol {
+      // 기호 모드: 고정 없이 토글만
+      isShifted.toggle()
+      isShiftLocked = false
+    } else {
+      if !isShifted {
+        // 꺼짐 -> 켜짐
+        isShifted = true
+        isShiftLocked = false
+      } else if !isShiftLocked {
+        // 켜짐 -> 고정
+        isShiftLocked = true
+      } else {
+        // 고정 -> 꺼짐
+        isShifted = false
+        isShiftLocked = false
+      }
+    }
+    
     rebuildKeyboard()
   }
 
@@ -587,6 +625,7 @@ class KeyboardViewController: UIInputViewController {
     handleBackspace()
     hapticGenerator.impactOccurred()
     
+    backspaceRepeatCount = 0
     backspaceStartTimer?.invalidate()
     backspaceTimer?.invalidate()
     backspaceStartTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
@@ -594,10 +633,20 @@ class KeyboardViewController: UIInputViewController {
     }
   }
 
-  private func startContinuousBackspace() {
-    backspaceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
-      self?.handleBackspace()
-      self?.hapticGenerator.impactOccurred()
+  private func startContinuousBackspace(interval: TimeInterval = 0.1) {
+    backspaceTimer?.invalidate()
+    backspaceTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+      guard let self = self else { return }
+      self.handleBackspace()
+      self.hapticGenerator.impactOccurred()
+      self.backspaceRepeatCount += 1
+      
+      // 가속 단계: 약 1.5초(15회) 후 0.05초로, 약 3.5초(50회) 후 0.03초로 단축
+      if self.backspaceRepeatCount == 15 {
+        self.startContinuousBackspace(interval: 0.05)
+      } else if self.backspaceRepeatCount == 55 {
+        self.startContinuousBackspace(interval: 0.03)
+      }
     }
   }
 
@@ -641,10 +690,12 @@ class KeyboardViewController: UIInputViewController {
     hapticGenerator.impactOccurred()
     flushHangul()
     isHangul.toggle()
+    isShifted = false
+    isShiftLocked = false
     automata.reset()
     composingChar = nil
     isEmoji = false
-    isSymbol = false   // 기호 모드에서 눌러도 문자 모드로 전환
+    isSymbol = false
     rebuildKeyboard()
   }
 
@@ -653,6 +704,7 @@ class KeyboardViewController: UIInputViewController {
     flushHangul()
     isSymbol.toggle()
     isShifted = false
+    isShiftLocked = false
     isEmoji = false
     rebuildKeyboard()
   }
@@ -855,6 +907,7 @@ class KeyboardViewController: UIInputViewController {
 
   @objc private func cursorTapped(_ sender: KeyButton) {
     hapticGenerator.impactOccurred()
+    flushHangul()
     switch sender.keyValue {
     case "cursor_left":
       textDocumentProxy.adjustTextPosition(byCharacterOffset: -1)
@@ -956,6 +1009,8 @@ class KeyboardViewController: UIInputViewController {
     flushHangul()
     isEmoji.toggle()
     isSymbol = false
+    isShifted = false
+    isShiftLocked = false
     rebuildKeyboard()
   }
 
@@ -1015,10 +1070,11 @@ class KeyboardViewController: UIInputViewController {
   }
 
   private func rebuildKeyboard() {
-    // 이모지 탭 전환 중이거나, 초기 상태이면 전체 빌드 (Layout change)
-    if isEmoji != wasEmoji || view.viewWithTag(999) == nil && !isEmoji {
+    // 이모지나 기호 탭 전환 중이거나, 초기 상태이면 전체 빌드 (Layout change)
+    if isEmoji != wasEmoji || isSymbol != wasSymbol || view.viewWithTag(999) == nil && !isEmoji {
       buildKeyboard()
       wasEmoji = isEmoji
+      wasSymbol = isSymbol
     } else if isEmoji {
       // 이미 이모지 모드인 경우 (Re-build emoji if needed, but usually redundant)
       buildKeyboard()
@@ -1051,7 +1107,7 @@ class KeyboardViewController: UIInputViewController {
           btn.setTitle(letterLabel(for: ch), for: .normal)
           btn.keyValue = String(ch)
         }
-      case 500...508: // Row 3 (Letters or Symbols Row 2)
+      case 500...509: // Row 3 (Letters or Symbols Row 2)
         let idx = btn.tag - 500
         if isSymbol {
           let keys = isShifted ? SYM_ROW2_SHIFTED : SYM_ROW2_NORMAL
@@ -1074,8 +1130,20 @@ class KeyboardViewController: UIInputViewController {
           btn.keyValue = String(ch)
         }
       case 699: // Shift Button
-        btn.setTitle(isShifted ? "⇪" : "⇧", for: .normal)
-        btn.backgroundColor = isShifted ? activeGlassColor : specialGlassColor
+        let title: String = isShiftLocked ? "⇪" : "⇧"
+        btn.setTitle(title, for: .normal)
+        if isShifted {
+          if isShiftLocked {
+            btn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.8) : UIColor(white: 0.0, alpha: 0.7)
+            btn.setTitleColor(isDarkMode ? .black : .white, for: .normal)
+          } else {
+            btn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.4) : UIColor(white: 0.0, alpha: 0.3)
+            btn.setTitleColor(.white, for: .normal)
+          }
+        } else {
+          btn.backgroundColor = specialGlassColor
+          btn.setTitleColor(specialTextColor, for: .normal)
+        }
       default:
         break
       }
