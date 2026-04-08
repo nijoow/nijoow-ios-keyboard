@@ -161,6 +161,12 @@ class KeyboardViewController: UIInputViewController {
     }
   }
 
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    // 앱이 처음 뜰 때 테마를 정확히 반영하기 위해 한 번 더 레이아웃을 갱신합니다.
+    rebuildKeyboard()
+  }
+
   @available(iOS, introduced: 8.0, deprecated: 17.0)
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
@@ -1070,17 +1076,36 @@ class KeyboardViewController: UIInputViewController {
   }
 
   private func rebuildKeyboard() {
-    // 이모지나 기호 탭 전환 중이거나, 초기 상태이면 전체 빌드 (Layout change)
-    if isEmoji != wasEmoji || isSymbol != wasSymbol || view.viewWithTag(999) == nil && !isEmoji {
+    if isEmoji != wasEmoji || isSymbol != wasSymbol {
       buildKeyboard()
       wasEmoji = isEmoji
       wasSymbol = isSymbol
-    } else if isEmoji {
-      // 이미 이모지 모드인 경우 (Re-build emoji if needed, but usually redundant)
-      buildKeyboard()
     } else {
-      // 일반적인 상태 변화 (Shift, Lang, Symbol) -> 레이아웃 유지하며 라벨만 업데이트
+      // 구조적 변화가 없는 경우(시프트 전환, 테마 변경 등) 색상과 라벨만 업데이트
       updateKeyLabels()
+      updateAppearance()
+    }
+  }
+
+  private func updateAppearance() {
+    for btn in allKeyButtons {
+      // 버튼 타입 결정 (isSpecial 여부)
+      let id = btn.keyValue
+      let isSpecial = (id == "shift" || id == "backspace" || id == "symbol" || id == "lang" || id == "enter" || id == "emoji" || id == "dismiss" || id.contains("cursor"))
+      
+      // Shift 버튼은 전용 상태 디자인이 있으므로 updateKeyLabels에서 처리하고 여기선 건너뜁니다.
+      if id == "shift" { continue }
+      
+      // 배경색 및 글자색
+      btn.backgroundColor = isSpecial ? specialGlassColor : keyGlassColor
+      btn.setTitleColor(isSpecial ? specialTextColor : keyTextColor, for: .normal)
+      btn.tintColor = isSpecial ? specialTextColor : keyTextColor
+      
+      // 레이어 속성 (CGColor는 강제 갱신 필요)
+      btn.layer.borderColor = keyBorderColor
+      btn.layer.shadowColor = UIColor.black.cgColor
+      btn.layer.shadowOpacity = isDarkMode ? 0.5 : 0.15
+      btn.layer.shadowRadius = isDarkMode ? 4 : 2
     }
   }
 
