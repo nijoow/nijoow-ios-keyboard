@@ -77,6 +77,11 @@ class KeyboardViewController: UIInputViewController {
   private var popupItems: [String] = []
   private var popupSelectedIndex: Int = -1
 
+  // MARK: - Backspace 빠른 지우기 및 햅틱
+  private var backspaceStartTimer: Timer?
+  private var backspaceTimer: Timer?
+  private let hapticGenerator = UIImpactFeedbackGenerator(style: .light)
+
   // MARK: 레이아웃 상수
 
   private let UTIL_ROW_H: CGFloat = 34   
@@ -332,7 +337,8 @@ class KeyboardViewController: UIInputViewController {
     shiftButton = shiftBtn
 
     let bsBtn = makeGlassButton(title: "⌫", id: "backspace", isSpecial: true)
-    bsBtn.addTarget(self, action: #selector(backspaceTapped), for: .touchUpInside)
+    bsBtn.addTarget(self, action: #selector(backspaceTouchDown(_:)), for: .touchDown)
+    bsBtn.addTarget(self, action: #selector(backspaceTouchUp(_:)), for: [.touchUpInside, .touchUpOutside, .touchCancel])
 
     let letterStack = UIStackView()
     letterStack.axis = .horizontal
@@ -547,7 +553,30 @@ class KeyboardViewController: UIInputViewController {
     rebuildKeyboard()
   }
 
-  @objc private func backspaceTapped() {
+  @objc private func backspaceTouchDown(_ sender: UIButton) {
+    handleBackspace()
+    hapticGenerator.impactOccurred()
+    
+    backspaceStartTimer?.invalidate()
+    backspaceTimer?.invalidate()
+    backspaceStartTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
+      self?.startContinuousBackspace()
+    }
+  }
+
+  private func startContinuousBackspace() {
+    backspaceTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+      self?.handleBackspace()
+      self?.hapticGenerator.impactOccurred()
+    }
+  }
+
+  @objc private func backspaceTouchUp(_ sender: UIButton) {
+    backspaceStartTimer?.invalidate()
+    backspaceTimer?.invalidate()
+  }
+
+  private func handleBackspace() {
     if isHangul && !isSymbol {
       let result = automata.backspace()
       if composingChar != nil {
