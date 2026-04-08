@@ -279,34 +279,40 @@ class KeyboardViewController: UIInputViewController {
     stack.distribution = .fillEqually
     stack.spacing = 5
 
-    // 커서 버튼 4방향
-    let cursors: [(String, String)] = [
-      ("|◀", "cursor_line_start"),
-      ("◀", "cursor_left"),
-      ("▶", "cursor_right"),
-      ("▶|", "cursor_line_end")
+    // 커서 버튼 4방향 (코드로 직접 그린 아이콘 적용)
+    let cursors: [(CursorIconType, String)] = [
+      (.lineStart, "cursor_line_start"),
+      (.left, "cursor_left"),
+      (.right, "cursor_right"),
+      (.lineEnd, "cursor_line_end")
     ]
-    for (title, id) in cursors {
-      let btn = makeGlassButton(title: title, id: id, isSpecial: true)
-      btn.titleLabel?.font = UIFont.systemFont(ofSize: 18, weight: .medium)
+    
+    for (type, id) in cursors {
+      let btn = makeGlassButton(title: "", id: id, isSpecial: true)
+      let img = drawCursorImage(type: type, size: CGSize(width: 32, height: 32))
+      btn.setImage(img.withRenderingMode(.alwaysTemplate), for: .normal)
+      btn.tintColor = specialTextColor
+      
       btn.addTarget(self, action: #selector(cursorTapped(_:)), for: .touchUpInside)
       stack.addArrangedSubview(btn)
     }
 
     // 이모지 토글
-    let emojiBtn = makeGlassButton(title: "☻", id: "emoji", isSpecial: true)
-    emojiBtn.titleLabel?.font = UIFont.systemFont(ofSize: 24)
+    let emojiBtn = makeGlassButton(title: "☺︎", id: "emoji", isSpecial: true)
+    emojiBtn.titleLabel?.font = UIFont.systemFont(ofSize: 26)
     if isEmoji { emojiBtn.backgroundColor = activeGlassColor }
     emojiBtn.addTarget(self, action: #selector(emojiTapped), for: .touchUpInside)
     stack.addArrangedSubview(emojiBtn)
 
     // 키보드 닫기 (SF Symbol: keyboard.chevron.compact.down)
     let dismissBtn = makeGlassButton(title: "", id: "dismiss", isSpecial: true)
-    if let img = UIImage(systemName: "keyboard.chevron.compact.down") {
+    let dismissConfig = UIImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+    if let img = UIImage(systemName: "keyboard.chevron.compact.down", withConfiguration: dismissConfig) {
       dismissBtn.setImage(img.withRenderingMode(.alwaysTemplate), for: .normal)
       dismissBtn.tintColor = specialTextColor
     } else {
       dismissBtn.setTitle("▼", for: .normal)
+      dismissBtn.titleLabel?.font = UIFont.systemFont(ofSize: 16)
     }
     dismissBtn.addTarget(self, action: #selector(dismissTapped), for: .touchUpInside)
     stack.addArrangedSubview(dismissBtn)
@@ -1117,6 +1123,97 @@ class KeyboardViewController: UIInputViewController {
         }
       default:
         break
+      }
+    }
+  }
+
+  // MARK: - 아이콘 드로잉 엔진
+
+  enum CursorIconType {
+    case lineStart, left, right, lineEnd
+  }
+
+  /// 커서 이동 아이콘을 정밀하게 그립니다 (라운딩 처리 포함).
+  private func drawCursorImage(type: CursorIconType, size: CGSize) -> UIImage {
+    let renderer = UIGraphicsImageRenderer(size: size)
+    return renderer.image { context in
+      let ctx = context.cgContext
+      ctx.setShouldAntialias(true)
+      ctx.setAllowsAntialiasing(true)
+      
+      UIColor.white.setFill()
+      UIColor.white.setStroke()
+      
+      let w = size.width
+      let h = size.height
+      let midX = w / 2
+      let midY = h / 2
+      
+      let barW: CGFloat = 2.0
+      let triW: CGFloat = 8.5 // 가로로 조금 더 길게 조정
+      let triH: CGFloat = 9.0
+      let gap: CGFloat = 2.0
+      let rounding: CGFloat = 1.5 // 라인 자체도 더 둥글게 느껴지도록 라운딩 강화
+      
+      switch type {
+      case .lineStart:
+        // 수직선 (라운딩)
+        let barRect = CGRect(x: midX - (triW + gap + barW)/2, y: midY - triH/2, width: barW, height: triH)
+        let barPath = UIBezierPath(roundedRect: barRect, cornerRadius: barW/2)
+        barPath.fill()
+        
+        // 삼각형 (라운딩)
+        let path = UIBezierPath()
+        let apexX = barRect.maxX + gap
+        path.move(to: CGPoint(x: apexX, y: midY))
+        path.addLine(to: CGPoint(x: apexX + triW, y: midY - triH/2))
+        path.addLine(to: CGPoint(x: apexX + triW, y: midY + triH/2))
+        path.close()
+        path.lineJoinStyle = .round
+        path.lineWidth = rounding
+        path.fill()
+        path.stroke()
+        
+      case .left:
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: midX - triW/2, y: midY))
+        path.addLine(to: CGPoint(x: midX + triW/2, y: midY - triH/2))
+        path.addLine(to: CGPoint(x: midX + triW/2, y: midY + triH/2))
+        path.close()
+        path.lineJoinStyle = .round
+        path.lineWidth = rounding
+        path.fill()
+        path.stroke()
+        
+      case .right:
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: midX + triW/2, y: midY))
+        path.addLine(to: CGPoint(x: midX - triW/2, y: midY - triH/2))
+        path.addLine(to: CGPoint(x: midX - triW/2, y: midY + triH/2))
+        path.close()
+        path.lineJoinStyle = .round
+        path.lineWidth = rounding
+        path.fill()
+        path.stroke()
+        
+      case .lineEnd:
+        // 삼각형 (라운딩)
+        let barX = midX + (triW + gap + barW)/2 - barW
+        let apexX = barX - gap
+        let path = UIBezierPath()
+        path.move(to: CGPoint(x: apexX, y: midY))
+        path.addLine(to: CGPoint(x: apexX - triW, y: midY - triH/2))
+        path.addLine(to: CGPoint(x: apexX - triW, y: midY + triH/2))
+        path.close()
+        path.lineJoinStyle = .round
+        path.lineWidth = rounding
+        path.fill()
+        path.stroke()
+        
+        // 수직선 (라운딩)
+        let barRect = CGRect(x: barX, y: midY - triH/2, width: barW, height: triH)
+        let barPath = UIBezierPath(roundedRect: barRect, cornerRadius: barW/2)
+        barPath.fill()
       }
     }
   }
