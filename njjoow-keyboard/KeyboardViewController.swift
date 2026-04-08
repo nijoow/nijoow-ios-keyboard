@@ -150,12 +150,21 @@ class KeyboardViewController: UIInputViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
     buildKeyboard()
+
+    if #available(iOS 17.0, *) {
+      registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: Self, _) in
+        self.rebuildKeyboard()
+      }
+    }
   }
 
+  @available(iOS, introduced: 8.0, deprecated: 17.0)
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
-    if self.traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
-      rebuildKeyboard()
+    if #unavailable(iOS 17.0) {
+      if self.traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
+        rebuildKeyboard()
+      }
     }
   }
 
@@ -228,7 +237,7 @@ class KeyboardViewController: UIInputViewController {
         
         let v1 = makeEqualRow(keys: row1)
         let v2 = makeEqualRow(keys: row2)
-        let v3 = makeShiftRow(middleKeys: row3, keyValues: row3)
+        let v3 = makeShiftRow(middleKeys: row3, keyValues: row3, rowOffset: 600)
         
         [v1, v2, v3].forEach {
           $0.heightAnchor.constraint(equalToConstant: MAIN_KEY_H).isActive = true
