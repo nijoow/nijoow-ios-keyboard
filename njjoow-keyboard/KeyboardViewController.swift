@@ -107,7 +107,7 @@ class KeyboardViewController: UIInputViewController {
   private var specialGlassColor: UIColor {
     return isDarkMode
       ? UIColor(white: 1.0, alpha: 0.06)
-      : UIColor(white: 0.95, alpha: 0.45)
+      : UIColor(white: 0.2, alpha: 0.06)
   }
 
   /// 활성화된 시프트 배경
@@ -876,14 +876,7 @@ class KeyboardViewController: UIInputViewController {
   }
 
   @objc private func dismissTapped() {
-    // 키보드 익스텐션에서는 직접 dismiss 불가 — 다음 입력 모드로 이동하거나
-    // responder chain을 통해 키보드 닫기를 시도
-    // iOS 16+: textDocumentProxy를 통한 접근 활용
-    if let app = UIApplication.value(forKeyPath: "sharedApplication") as? UIApplication {
-      app.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-    } else {
-      advanceToNextInputMode()
-    }
+    self.dismissKeyboard()
   }
 
   @objc private func emojiKeyTapped(_ sender: UIButton) {
