@@ -86,7 +86,8 @@ class KeyboardViewController: UIInputViewController {
 
   private let UTIL_ROW_H: CGFloat = 34   
   private let KEY_FONT_SIZE: CGFloat = 20 
-  private let MAIN_KEY_H: CGFloat = 36
+  private let NUMBER_ROW_H: CGFloat = 38
+  private let MAIN_KEY_H: CGFloat = 46
   private let BOTTOM_ROW_H: CGFloat = 38
   private let CORNER_RADIUS: CGFloat = 8
 
@@ -137,7 +138,14 @@ class KeyboardViewController: UIInputViewController {
     return isDarkMode ? UIColor(white: 0.85, alpha: 1) : .darkGray
   }
 
+  private var wasEmoji = false // 이모지 전환 감지용
+
   // MARK: - Lifecycle
+
+  override func viewWillAppear(_ animated: Bool) {
+    super.viewWillAppear(animated)
+    hapticGenerator.prepare()
+  }
 
   override func viewDidLoad() {
     super.viewDidLoad()
@@ -194,6 +202,7 @@ class KeyboardViewController: UIInputViewController {
     } else {
       // 콘텐츠 스택 (숫자 행 + 문자/기호 행)
       let contentStack = UIStackView()
+      contentStack.tag = 999 // 마커 태그
       contentStack.axis = .vertical
       contentStack.distribution = .fill
       contentStack.spacing = 7
@@ -207,8 +216,10 @@ class KeyboardViewController: UIInputViewController {
         contentStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6)
       ])
 
-      // 숫자 행 (항상) - 남은 공간을 차지하도록 Distribution .fill 상태에서 별도 높이 지정 안 함
-      contentStack.addArrangedSubview(makeNumberRow())
+      // 숫자 행 (항상)
+      let numRow = makeNumberRow()
+      numRow.heightAnchor.constraint(equalToConstant: NUMBER_ROW_H).isActive = true
+      contentStack.addArrangedSubview(numRow)
 
       if isSymbol {
         let row1 = isShifted ? SYM_ROW1_SHIFTED : SYM_ROW1_NORMAL
@@ -282,61 +293,61 @@ class KeyboardViewController: UIInputViewController {
   // MARK: - 행 생성
 
   private func makeNumberRow() -> UIView {
-    makeEqualRow(keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"])
+    makeEqualRow(keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], rowOffset: 300)
   }
 
   private func makeLetterRow1() -> UIView {
-    makeLetterRowStack(["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"])
+    makeLetterRowStack(["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"], rowOffset: 400)
   }
 
   private func makeLetterRow2() -> UIView {
-    makeLetterRowStack(["a", "s", "d", "f", "g", "h", "j", "k", "l"])
+    makeLetterRowStack(["a", "s", "d", "f", "g", "h", "j", "k", "l"], rowOffset: 500)
   }
 
   private func makeLetterShiftRow() -> UIView {
     let chars: [Character] = ["z", "x", "c", "v", "b", "n", "m"]
     let labels = chars.map { letterLabel(for: $0) }
     let keys   = chars.map { String($0) }
-    return makeShiftRow(middleKeys: labels, keyValues: keys)
+    return makeShiftRow(middleKeys: labels, keyValues: keys, rowOffset: 600)
   }
 
   // MARK: - 공통 행 빌더
 
-  private func makeLetterRowStack(_ chars: [Character]) -> UIView {
+  private func makeLetterRowStack(_ chars: [Character], rowOffset: Int) -> UIView {
     let stack = UIStackView()
     stack.axis = .horizontal
     stack.distribution = .fillEqually
     stack.spacing = 5
-    for ch in chars {
+    for (idx, ch) in chars.enumerated() {
       stack.addArrangedSubview(
-        makeGlassButton(title: letterLabel(for: ch), id: String(ch), isSpecial: false)
+        makeGlassButton(title: letterLabel(for: ch), id: String(ch), isSpecial: false, tag: rowOffset + idx)
       )
     }
     return stack
   }
 
-  private func makeEqualRow(keys: [String]) -> UIView {
+  private func makeEqualRow(keys: [String], rowOffset: Int = 0) -> UIView {
     let stack = UIStackView()
     stack.axis = .horizontal
     stack.distribution = .fillEqually
     stack.spacing = 5
-    for key in keys {
-      stack.addArrangedSubview(makeGlassButton(title: key, id: key, isSpecial: false))
+    for (idx, key) in keys.enumerated() {
+      stack.addArrangedSubview(makeGlassButton(title: key, id: key, isSpecial: false, tag: rowOffset + idx))
     }
     return stack
   }
 
   /// ⇧ + 중간 키들 + ⌫ 행
-  private func makeShiftRow(middleKeys: [String], keyValues: [String]) -> UIView {
+  private func makeShiftRow(middleKeys: [String], keyValues: [String], rowOffset: Int) -> UIView {
     let container = UIView()
 
     let shiftTitle = isShifted ? "⇪" : "⇧"
-    let shiftBtn = makeGlassButton(title: shiftTitle, id: "shift", isSpecial: true)
+    let shiftBtn = makeGlassButton(title: shiftTitle, id: "shift", isSpecial: true, tag: 699)
     shiftBtn.addTarget(self, action: #selector(shiftTapped), for: .touchUpInside)
     if isShifted { shiftBtn.backgroundColor = activeGlassColor }
     shiftButton = shiftBtn
 
-    let bsBtn = makeGlassButton(title: "⌫", id: "backspace", isSpecial: true)
+    let bsBtn = makeGlassButton(title: "⌫", id: "backspace", isSpecial: true, tag: 698)
     bsBtn.addTarget(self, action: #selector(backspaceTouchDown(_:)), for: .touchDown)
     bsBtn.addTarget(self, action: #selector(backspaceTouchUp(_:)), for: [.touchUpInside, .touchUpOutside, .touchCancel])
 
@@ -345,8 +356,8 @@ class KeyboardViewController: UIInputViewController {
     letterStack.distribution = .fillEqually
     letterStack.spacing = 5
 
-    for (label, value) in zip(middleKeys, keyValues) {
-      let btn = makeGlassButton(title: label, id: value, isSpecial: false)
+    for (idx, (label, value)) in zip(middleKeys, keyValues).enumerated() {
+      let btn = makeGlassButton(title: label, id: value, isSpecial: false, tag: rowOffset + idx)
       letterStack.addArrangedSubview(btn)
     }
 
@@ -381,19 +392,19 @@ class KeyboardViewController: UIInputViewController {
     let container = UIView()
 
     let symBtnTitle = isSymbol ? (isHangul ? "한글" : "ENG") : "♥︎"
-    let symBtn   = makeGlassButton(title: symBtnTitle, id: "symbol", isSpecial: true)
+    let symBtn   = makeGlassButton(title: symBtnTitle, id: "symbol", isSpecial: true, tag: 201)
     symBtn.titleLabel?.font = UIFont.systemFont(ofSize: 16)
     symBtn.addTarget(self, action: #selector(symbolTapped), for: .touchUpInside)
 
-    let langBtn  = makeGlassButton(title: isHangul ? "ENG" : "한글", id: "lang", isSpecial: true)
+    let langBtn  = makeGlassButton(title: isHangul ? "ENG" : "한글", id: "lang", isSpecial: true, tag: 202)
     langBtn.titleLabel?.font = UIFont.systemFont(ofSize: 16)
     langBtn.addTarget(self, action: #selector(langTapped), for: .touchUpInside)
 
-    let spaceBtn = makeGlassButton(title: "", id: " ", isSpecial: false)
+    let spaceBtn = makeGlassButton(title: "", id: " ", isSpecial: false, tag: 203)
 
-    let dotBtn   = makeGlassButton(title: ".", id: ".", isSpecial: false)
+    let dotBtn   = makeGlassButton(title: ".", id: ".", isSpecial: false, tag: 204)
 
-    let enterBtn = makeGlassButton(title: "↵", id: "enter", isSpecial: true)
+    let enterBtn = makeGlassButton(title: "↵", id: "enter", isSpecial: true, tag: 205)
     enterBtn.addTarget(self, action: #selector(enterTapped), for: .touchUpInside)
 
     [symBtn, langBtn, spaceBtn, dotBtn, enterBtn].forEach {
@@ -482,8 +493,9 @@ class KeyboardViewController: UIInputViewController {
 
   // MARK: - 글래스 버튼 팩토리
 
-  private func makeGlassButton(title: String, id: String, isSpecial: Bool) -> KeyButton {
+  private func makeGlassButton(title: String, id: String, isSpecial: Bool, tag: Int = 0) -> KeyButton {
     let btn = KeyButton(type: .system)
+    btn.tag = tag
     btn.keyValue = id
     btn.setTitle(title, for: .normal)
 
@@ -532,6 +544,7 @@ class KeyboardViewController: UIInputViewController {
   // MARK: - 액션
 
   @objc private func letterTapped(_ sender: KeyButton) {
+    hapticGenerator.impactOccurred()
     let key = sender.keyValue
     guard let ch = key.first else { return }
 
@@ -549,11 +562,13 @@ class KeyboardViewController: UIInputViewController {
   }
 
   @objc private func shiftTapped() {
+    hapticGenerator.impactOccurred()
     isShifted.toggle()
     rebuildKeyboard()
   }
 
   @objc private func backspaceTouchDown(_ sender: UIButton) {
+    hapticGenerator.prepare()
     handleBackspace()
     hapticGenerator.impactOccurred()
     
@@ -595,6 +610,7 @@ class KeyboardViewController: UIInputViewController {
   }
 
   @objc private func langTapped() {
+    hapticGenerator.impactOccurred()
     flushHangul()
     isHangul.toggle()
     automata.reset()
@@ -605,6 +621,7 @@ class KeyboardViewController: UIInputViewController {
   }
 
   @objc private func symbolTapped() {
+    hapticGenerator.impactOccurred()
     flushHangul()
     isSymbol.toggle()
     isShifted = false
@@ -613,6 +630,7 @@ class KeyboardViewController: UIInputViewController {
   }
 
   @objc private func enterTapped() {
+    hapticGenerator.impactOccurred()
     flushHangul()
     textDocumentProxy.insertText("\n")
   }
@@ -751,7 +769,12 @@ class KeyboardViewController: UIInputViewController {
     if newIdx < 0 { newIdx = 0 }
     if newIdx >= popupItems.count { newIdx = popupItems.count - 1 }
     
+    let oldIdx = popupSelectedIndex
     popupSelectedIndex = newIdx
+    
+    if oldIdx != newIdx {
+        hapticGenerator.impactOccurred()
+    }
     
     for (i, lbl) in popupLabels.enumerated() {
         if i == popupSelectedIndex {
@@ -801,6 +824,7 @@ class KeyboardViewController: UIInputViewController {
   // MARK: - 커서 이동 (정확한 줄 이동)
 
   @objc private func cursorTapped(_ sender: KeyButton) {
+    hapticGenerator.impactOccurred()
     switch sender.keyValue {
     case "cursor_left":
       textDocumentProxy.adjustTextPosition(byCharacterOffset: -1)
@@ -898,6 +922,7 @@ class KeyboardViewController: UIInputViewController {
   // MARK: - 이모지 / 닫기
 
   @objc private func emojiTapped() {
+    hapticGenerator.impactOccurred()
     flushHangul()
     isEmoji.toggle()
     isSymbol = false
@@ -905,10 +930,12 @@ class KeyboardViewController: UIInputViewController {
   }
 
   @objc private func dismissTapped() {
+    hapticGenerator.impactOccurred()
     self.dismissKeyboard()
   }
 
   @objc private func emojiKeyTapped(_ sender: UIButton) {
+    hapticGenerator.impactOccurred()
     if let emoji = sender.accessibilityLabel {
       textDocumentProxy.insertText(emoji)
     }
@@ -952,6 +979,70 @@ class KeyboardViewController: UIInputViewController {
   }
 
   private func rebuildKeyboard() {
-    buildKeyboard()
+    // 이모지 탭 전환 중이거나, 초기 상태이면 전체 빌드 (Layout change)
+    if isEmoji != wasEmoji || view.viewWithTag(999) == nil && !isEmoji {
+      buildKeyboard()
+      wasEmoji = isEmoji
+    } else if isEmoji {
+      // 이미 이모지 모드인 경우 (Re-build emoji if needed, but usually redundant)
+      buildKeyboard()
+    } else {
+      // 일반적인 상태 변화 (Shift, Lang, Symbol) -> 레이아웃 유지하며 라벨만 업데이트
+      updateKeyLabels()
+    }
+  }
+
+  private func updateKeyLabels() {
+    let row1Normal: [Character] = ["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"]
+    let row2Normal: [Character] = ["a", "s", "d", "f", "g", "h", "j", "k", "l"]
+    let row3Normal: [Character] = ["z", "x", "c", "v", "b", "n", "m"]
+
+    for btn in allKeyButtons {
+      switch btn.tag {
+      case 201: // symBtn
+        let title = isSymbol ? (isHangul ? "한글" : "ENG") : "♥︎"
+        btn.setTitle(title, for: .normal)
+      case 202: // langBtn
+        btn.setTitle(isHangul ? "ENG" : "한글", for: .normal)
+      case 400...409: // Row 2 (Letters or Symbols Row 1)
+        let idx = btn.tag - 400
+        if isSymbol {
+          let keys = isShifted ? SYM_ROW1_SHIFTED : SYM_ROW1_NORMAL
+          btn.setTitle(keys[idx], for: .normal)
+          btn.keyValue = keys[idx]
+        } else {
+          let ch = row1Normal[idx]
+          btn.setTitle(letterLabel(for: ch), for: .normal)
+          btn.keyValue = String(ch)
+        }
+      case 500...508: // Row 3 (Letters or Symbols Row 2)
+        let idx = btn.tag - 500
+        if isSymbol {
+          let keys = isShifted ? SYM_ROW2_SHIFTED : SYM_ROW2_NORMAL
+          btn.setTitle(keys[idx], for: .normal)
+          btn.keyValue = keys[idx]
+        } else {
+          let ch = row2Normal[idx]
+          btn.setTitle(letterLabel(for: ch), for: .normal)
+          btn.keyValue = String(ch)
+        }
+      case 600...606: // Row 4 (Letters or Symbols Row 3)
+        let idx = btn.tag - 600
+        if isSymbol {
+          let keys = isShifted ? SYM_ROW3_SHIFTED : SYM_ROW3_NORMAL
+          btn.setTitle(keys[idx], for: .normal)
+          btn.keyValue = keys[idx]
+        } else {
+          let ch = row3Normal[idx]
+          btn.setTitle(letterLabel(for: ch), for: .normal)
+          btn.keyValue = String(ch)
+        }
+      case 699: // Shift Button
+        btn.setTitle(isShifted ? "⇪" : "⇧", for: .normal)
+        btn.backgroundColor = isShifted ? activeGlassColor : specialGlassColor
+      default:
+        break
+      }
+    }
   }
 }
