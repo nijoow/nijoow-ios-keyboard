@@ -9,7 +9,7 @@ struct EmojiItem: Codable {
 /// [경량화] subGroups 단계가 제거된 단순화된 그룹 모델
 struct EmojiGroup: Codable {
     let groupName: String
-    let emojis: [EmojiItem]
+    let customs: [EmojiItem]
 }
 
 struct EmojiCategory: Codable {
@@ -26,7 +26,7 @@ class EmojiProvider {
     
     // 최근 사용 이모지 목록
     private(set) var recentEmojis: [String] = []
-    private let recentKey = "com.njjoow.keyboard.recentEmojis"
+    private let recentKey = "nijoow.custom.keyboard.recentEmojis"
     private let maxRecentCount = 40
     
     // UI에 제공할 최종 카테고리 목록 (최근 사용 포함)
@@ -56,9 +56,9 @@ class EmojiProvider {
                 let decoder = JSONDecoder()
                 if let groups = try? decoder.decode([EmojiGroup].self, from: data) {
                     for group in groups {
-                        let allEmojisInGroup = group.emojis.map { $0.char }
+                        let allEmojisInGroup = group.customs.map { $0.char }
                         
-                        for emoji in group.emojis {
+                        for emoji in group.customs {
                             if let variations = emoji.variations, !variations.isEmpty {
                                 variationsMap[emoji.char] = variations.map { $0.char }
                             }
@@ -82,16 +82,16 @@ class EmojiProvider {
         loadRecents()
     }
 
-    // MARK: - Recent Emojis Management
+    // MARK: - Recent Customs Management
     
-    func addRecentEmoji(_ emoji: String) {
+    func addRecentEmoji(_ custom: String) {
         // 기존 목록에서 중복 제거
-        if let index = recentEmojis.firstIndex(of: emoji) {
+        if let index = recentEmojis.firstIndex(of: custom) {
             recentEmojis.remove(at: index)
         }
         
         // 맨 앞에 추가
-        recentEmojis.insert(emoji, at: 0)
+        recentEmojis.insert(custom, at: 0)
         
         // 개수 제한
         if recentEmojis.count > maxRecentCount {
@@ -113,14 +113,14 @@ class EmojiProvider {
 
     // MARK: - Logic
     
-    func supportsSkinTone(_ emoji: String) -> Bool {
-        return emojiToVariations[emoji] != nil
+    func supportsSkinTone(_ custom: String) -> Bool {
+        return emojiToVariations[custom] != nil
     }
 
-    func getVariations(for emoji: String) -> [String] {
-        if let variations = emojiToVariations[emoji] {
-            return [emoji] + variations
+    func getVariations(for custom: String) -> [String] {
+        if let variations = emojiToVariations[custom] {
+            return [custom] + variations
         }
-        return [emoji]
+        return [custom]
     }
 }

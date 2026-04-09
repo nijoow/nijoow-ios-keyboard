@@ -1,6 +1,6 @@
 //
 //  KeyboardConstants.swift
-//  njjoow-keyboard
+//  custom-keyboard
 //
 //  Created by antigravity on 4/9/26.
 //

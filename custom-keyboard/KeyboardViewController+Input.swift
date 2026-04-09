@@ -1,6 +1,6 @@
 //
 //  KeyboardViewController+Input.swift
-//  njjoow-keyboard
+//  custom-keyboard
 //
 
 import UIKit
@@ -122,7 +122,7 @@ extension KeyboardViewController {
     UserDefaults.standard.set(isHangul, forKey: "isHangulState")
     automata.reset()
     composingChar = nil
-    isEmoji = false
+    isCustom = false
     isSymbol = false
     rebuildKeyboard()
   }
@@ -130,7 +130,7 @@ extension KeyboardViewController {
   @objc func symbolTapped() {
     triggerHaptic()
     isSymbol.toggle()
-    isEmoji = false // 이모지 모드 해제
+    isCustom = false // 이모지 모드 해제
     // 기호 모드 진입 시 시프트 상태 초기화 (1/2 페이지부터 시작)
     isShifted = false
     rebuildKeyboard()
@@ -220,9 +220,9 @@ extension KeyboardViewController {
     }
   }
 
-  @objc func emojiTapped() {
+  @objc func customTapped() {
     flushHangul()
-    isEmoji.toggle()
+    isCustom.toggle()
     isSymbol = false
     rebuildKeyboard()
   }
@@ -231,9 +231,9 @@ extension KeyboardViewController {
     dismissKeyboard()
   }
 
-  @objc func emojiKeyTapped(_ sender: UIButton) {
-    if let emoji = sender.accessibilityLabel {
-      textDocumentProxy.insertText(emoji)
+  @objc func customKeyTapped(_ sender: UIButton) {
+    if let custom = sender.accessibilityLabel {
+      textDocumentProxy.insertText(custom)
     }
   }
 
@@ -303,20 +303,20 @@ extension KeyboardViewController {
   }
 }
 
-// MARK: - EmojiKeyboardViewDelegate
+// MARK: - CustomKeyboardViewDelegate
 
-extension KeyboardViewController: EmojiKeyboardViewDelegate {
-  func emojiKeyboardView(_ view: EmojiKeyboardView, didSelectEmoji emoji: String) {
+extension KeyboardViewController: CustomKeyboardViewDelegate {
+  func customKeyboardView(_ view: CustomKeyboardView, didSelectCustom custom: String) {
     triggerHaptic()
-    textDocumentProxy.insertText(emoji)
+    textDocumentProxy.insertText(custom)
   }
   
-  func emojiKeyboardViewDidTapBackspace(_ view: EmojiKeyboardView) {
+  func customKeyboardViewDidTapBackspace(_ view: CustomKeyboardView) {
     triggerHaptic()
     handleBackspace()
   }
   
-  func emojiKeyboardViewDidRequestHaptic(_ view: EmojiKeyboardView) {
+  func customKeyboardViewDidRequestHaptic(_ view: CustomKeyboardView) {
     triggerHaptic()
   }
 }

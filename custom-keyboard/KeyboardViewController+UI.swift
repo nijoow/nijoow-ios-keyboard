@@ -1,6 +1,6 @@
 //
 //  KeyboardViewController+UI.swift
-//  njjoow-keyboard
+//  custom-keyboard
 //
 
 import UIKit
@@ -34,28 +34,28 @@ extension KeyboardViewController {
       botRow.heightAnchor.constraint(equalToConstant: KeyboardConstants.BOTTOM_ROW_H)
     ])
 
-    if isEmoji {
-      setupEmojiPanel(under: utilRow, above: botRow)
+    if isCustom {
+      setupCustomPanel(under: utilRow, above: botRow)
     } else {
       setupMainContentStack(under: utilRow, above: botRow)
     }
   }
 
-  private func setupEmojiPanel(under utilRow: UIView, above botRow: UIView) {
-    let emojiView = EmojiKeyboardView(isDarkMode: isDarkMode)
-    emojiView.delegate = self
-    emojiView.translatesAutoresizingMaskIntoConstraints = false
-    view.addSubview(emojiView)
+  private func setupCustomPanel(under utilRow: UIView, above botRow: UIView) {
+    let customView = CustomKeyboardView(isDarkMode: isDarkMode)
+    customView.delegate = self
+    customView.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(customView)
     
     // 한영 키보드의 (숫자행 1 + 문자행 3 + 행간 간격 3 + 상하 여백 2) = 199pt
     let totalHeight: CGFloat = 185
     
     NSLayoutConstraint.activate([
-      emojiView.topAnchor.constraint(equalTo: utilRow.bottomAnchor, constant: 7),
-      emojiView.bottomAnchor.constraint(equalTo: botRow.topAnchor, constant: -7),
-      emojiView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
-      emojiView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
-      emojiView.heightAnchor.constraint(equalToConstant: totalHeight)
+      customView.topAnchor.constraint(equalTo: utilRow.bottomAnchor, constant: 7),
+      customView.bottomAnchor.constraint(equalTo: botRow.topAnchor, constant: -7),
+      customView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
+      customView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
+      customView.heightAnchor.constraint(equalToConstant: totalHeight)
     ])
     
     view.layoutIfNeeded()
@@ -132,10 +132,10 @@ extension KeyboardViewController {
       stack.addArrangedSubview(btn)
     }
 
-    let emojiBtn = makeGlassButton(title: "☺︎", id: "emoji", isSpecial: true, fontSize: 26)
-    if isEmoji { emojiBtn.backgroundColor = activeGlassColor }
-    emojiBtn.addTarget(self, action: #selector(emojiTapped), for: .touchUpInside)
-    stack.addArrangedSubview(emojiBtn)
+    let customBtn = makeGlassButton(title: "☺︎", id: "custom", isSpecial: true, fontSize: 26)
+    if isCustom { customBtn.backgroundColor = activeGlassColor }
+    customBtn.addTarget(self, action: #selector(customTapped), for: .touchUpInside)
+    stack.addArrangedSubview(customBtn)
 
     let dismissBtn = makeGlassButton(title: "", id: "dismiss", isSpecial: true)
     let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .medium)
@@ -198,7 +198,7 @@ extension KeyboardViewController {
     return container
   }
 
-  // 레거시 makeEmojiPanel 제거됨 (EmojiKeyboardView로 대체)
+  // 레거시 makeCustomPanel 제거됨 (CustomKeyboardView로 대체)
 
   // MARK: - 버튼 팩토리
   
@@ -245,9 +245,9 @@ extension KeyboardViewController {
   // MARK: - 외관 업데이트
   
   func rebuildKeyboard() {
-    if isEmoji != wasEmoji || isSymbol != wasSymbol {
+    if isCustom != wasCustom || isSymbol != wasSymbol {
       buildKeyboard()
-      wasEmoji = isEmoji
+      wasCustom = isCustom
       wasSymbol = isSymbol
     } else {
       updateKeyLabels()
@@ -258,7 +258,7 @@ extension KeyboardViewController {
   func updateAppearance() {
     for btn in allKeyButtons {
       let id = btn.keyValue
-      let isSpecial = (id == "shift" || id == "backspace" || id == "symbol" || id == "lang" || id == "enter" || id == "emoji" || id == "dismiss" || id.contains("cursor"))
+      let isSpecial = (id == "shift" || id == "backspace" || id == "symbol" || id == "lang" || id == "enter" || id == "custom" || id == "dismiss" || id.contains("cursor"))
       
       if id == "shift" {
         let isActive = isShifted || isShiftLocked

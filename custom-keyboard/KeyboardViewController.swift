@@ -1,6 +1,6 @@
 //
 //  KeyboardViewController.swift
-//  njjoow-keyboard
+//  custom-keyboard
 //
 //  Created by 이우진 on 4/8/26.
 //
@@ -8,6 +8,7 @@
 import UIKit
 import AudioToolbox
 
+@objc(KeyboardViewController)
 class KeyboardViewController: UIInputViewController {
 
   // MARK: - 핵심 상태
@@ -16,7 +17,7 @@ class KeyboardViewController: UIInputViewController {
   var isShiftLocked: Bool = false
   var lastShiftTapTime: Date? // 시프트 더블 탭 판정용
   var isSymbol: Bool = false
-  var isEmoji: Bool = false
+  var isCustom: Bool = false
   
   var automata = HangulAutomata()
   var composingChar: Character? = nil
@@ -40,7 +41,7 @@ class KeyboardViewController: UIInputViewController {
   var cursorRepeatCount = 0
   
   // MARK: - 테마 관련 감지
-  var wasEmoji = false
+  var wasCustom = false
   var wasSymbol = false
 
   var isDarkMode: Bool {

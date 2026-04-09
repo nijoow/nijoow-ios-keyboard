@@ -1,14 +1,14 @@
 import UIKit
 
-protocol EmojiKeyboardViewDelegate: AnyObject {
-    func emojiKeyboardView(_ view: EmojiKeyboardView, didSelectEmoji emoji: String)
-    func emojiKeyboardViewDidTapBackspace(_ view: EmojiKeyboardView)
-    func emojiKeyboardViewDidRequestHaptic(_ view: EmojiKeyboardView)
+protocol CustomKeyboardViewDelegate: AnyObject {
+    func customKeyboardView(_ view: CustomKeyboardView, didSelectCustom custom: String)
+    func customKeyboardViewDidTapBackspace(_ view: CustomKeyboardView)
+    func customKeyboardViewDidRequestHaptic(_ view: CustomKeyboardView)
 }
 
-class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
+class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
     
-    weak var delegate: EmojiKeyboardViewDelegate?
+    weak var delegate: CustomKeyboardViewDelegate?
     
     private var collectionView: UICollectionView!
     private var dockScrollView: UIScrollView!
@@ -90,8 +90,8 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
         collectionView.delegate = self
-        collectionView.register(EmojiCell.self, forCellWithReuseIdentifier: "EmojiCell")
-        collectionView.register(EmojiHeaderView.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: "EmojiHeader")
+        collectionView.register(CustomCell.self, forCellWithReuseIdentifier: "CustomCell")
+        collectionView.register(CustomHeaderView.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: "CustomHeader")
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(collectionView)
         
@@ -155,7 +155,7 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         }
     }
     
-    private var currentPopup: EmojiVariationPopup?
+    private var currentPopup: CustomVariationPopup?
 
     @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
         let pointInCollectionView = gesture.location(in: collectionView)
@@ -164,12 +164,12 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         switch gesture.state {
         case .began:
             guard let indexPath = collectionView.indexPathForItem(at: pointInCollectionView),
-                  let cell = collectionView.cellForItem(at: indexPath) as? EmojiCell,
-                  let emoji = cell.label.text else { return }
+                  let cell = collectionView.cellForItem(at: indexPath) as? CustomCell,
+                  let custom = cell.label.text else { return }
             
-            if EmojiProvider.shared.supportsSkinTone(emoji) {
-                delegate?.emojiKeyboardViewDidRequestHaptic(self)
-                showVariationPopup(for: emoji, at: cell)
+            if EmojiProvider.shared.supportsSkinTone(custom) {
+                delegate?.customKeyboardViewDidRequestHaptic(self)
+                showVariationPopup(for: custom, at: cell)
                 updateVariationSelection(at: pointInView)
             }
             
@@ -179,8 +179,8 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
             }
             
         case .ended:
-            if let popup = currentPopup, let selectedEmoji = popup.getSelectedEmoji() {
-                selectEmoji(selectedEmoji)
+            if let popup = currentPopup, let selectedCustom = popup.getSelectedCustom() {
+                selectCustom(selectedCustom)
             }
             hideVariationPopup()
             
@@ -213,7 +213,7 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         if index > maxIndex { index = maxIndex }
         
         if popup.selectedIndex != index {
-            delegate?.emojiKeyboardViewDidRequestHaptic(self)
+            delegate?.customKeyboardViewDidRequestHaptic(self)
             popup.updateSelection(at: index)
         }
     }
@@ -223,14 +223,14 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         currentPopup = nil
     }
     
-    private func showVariationPopup(for emoji: String, at cell: UICollectionViewCell) {
+    private func showVariationPopup(for custom: String, at cell: UICollectionViewCell) {
         hideVariationPopup()
         
         // [수정] 팝업이 키보드 영역 밖으로(상단으로) 나갈 수 있도록 최상위 뷰에 추가합니다.
         guard let superview = self.superview else { return }
         
-        let variations = EmojiProvider.shared.getVariations(for: emoji)
-        let popup = EmojiVariationPopup(variations: variations, isDarkMode: isDarkMode)
+        let variations = EmojiProvider.shared.getVariations(for: custom)
+        let popup = CustomVariationPopup(variations: variations, isDarkMode: isDarkMode)
         popup.translatesAutoresizingMaskIntoConstraints = false
         superview.addSubview(popup)
         
@@ -253,7 +253,7 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         ])
         
         currentPopup = popup
-        delegate?.emojiKeyboardViewDidRequestHaptic(self)
+        delegate?.customKeyboardViewDidRequestHaptic(self)
     }
     
     @objc private func dockButtonTapped(_ sender: UIButton) {
@@ -275,13 +275,13 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
                 if targetY < 0 { targetY = 0 }
                 
                 collectionView.setContentOffset(CGPoint(x: 0, y: targetY), animated: true)
-                delegate?.emojiKeyboardViewDidRequestHaptic(self)
+                delegate?.customKeyboardViewDidRequestHaptic(self)
             }
         }
     }
     
     @objc private func backspaceTapped() {
-        delegate?.emojiKeyboardViewDidTapBackspace(self)
+        delegate?.customKeyboardViewDidTapBackspace(self)
     }
     
     // MARK: - UICollectionViewDataSource
@@ -295,14 +295,14 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
     }
     
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
-        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "EmojiCell", for: indexPath) as! EmojiCell
+        let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "CustomCell", for: indexPath) as! CustomCell
         cell.label.text = provider.categories[indexPath.section].emojis[indexPath.item]
         cell.label.textColor = isDarkMode ? .white : .black
         return cell
     }
     
     func collectionView(_ collectionView: UICollectionView, viewForSupplementaryElementOfKind kind: String, at indexPath: IndexPath) -> UICollectionReusableView {
-        let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "EmojiHeader", for: indexPath) as! EmojiHeaderView
+        let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "CustomHeader", for: indexPath) as! CustomHeaderView
         header.label.text = provider.categories[indexPath.section].title
         header.label.textColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.9) : .black
         
@@ -349,17 +349,17 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
     }
     
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        let emoji = provider.categories[indexPath.section].emojis[indexPath.item]
-        selectEmoji(emoji)
+        let custom = provider.categories[indexPath.section].emojis[indexPath.item]
+        selectCustom(custom)
     }
     
-    private func selectEmoji(_ emoji: String) {
+    private func selectCustom(_ custom: String) {
         // [수정] 최근 이용 기록 업데이트 및 전체 새로고침
         let hadRecentBefore = !provider.recentEmojis.isEmpty
-        provider.addRecentEmoji(emoji)
+        provider.addRecentEmoji(custom)
         let hasRecentNow = !provider.recentEmojis.isEmpty
         
-        delegate?.emojiKeyboardView(self, didSelectEmoji: emoji)
+        delegate?.customKeyboardView(self, didSelectCustom: custom)
         
         // 최근 사용 탭이 처음 생기거나 목록이 바뀌면 UI 업데이트
         if !hadRecentBefore && hasRecentNow {
@@ -374,7 +374,7 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
     }
 }
 
-class EmojiCell: UICollectionViewCell {
+class CustomCell: UICollectionViewCell {
     let label = UILabel()
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -390,7 +390,7 @@ class EmojiCell: UICollectionViewCell {
     required init?(coder: NSCoder) { fatalError() }
 }
 
-class EmojiHeaderView: UICollectionReusableView {
+class CustomHeaderView: UICollectionReusableView {
     let label = UILabel()
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -405,10 +405,10 @@ class EmojiHeaderView: UICollectionReusableView {
     required init?(coder: NSCoder) { fatalError() }
 }
 
-extension EmojiKeyboardView: EmojiVariationPopupDelegate {
-    func emojiVariationPopup(_ popup: EmojiVariationPopup, didSelectEmoji emoji: String) {
+extension CustomKeyboardView: CustomVariationPopupDelegate {
+    func customVariationPopup(_ popup: CustomVariationPopup, didSelectCustom custom: String) {
         // 선택된 가변 이모지 입력 및 최근 사용 업데이트
-        selectEmoji(emoji)
+        selectCustom(custom)
         
         // 팝업 제거
         popup.removeFromSuperview()

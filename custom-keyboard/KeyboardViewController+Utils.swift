@@ -1,6 +1,6 @@
 //
 //  KeyboardViewController+Utils.swift
-//  njjoow-keyboard
+//  custom-keyboard
 //
 
 import UIKit
@@ -51,7 +51,7 @@ extension KeyboardViewController {
       case "ㅒ": return ["ㅒ", "ㅐ"]; case "ㅖ": return ["ㅖ", "ㅔ"]
       default: return [char]
       }
-    } else if !isSymbol && !isEmoji {
+    } else if !isSymbol && !isCustom {
       let lower = char.lowercased()
       let upper = char.uppercased()
       return lower != upper ? [lower, upper] : [char]

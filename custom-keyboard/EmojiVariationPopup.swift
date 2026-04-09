@@ -1,11 +1,11 @@
 import UIKit
 
-protocol EmojiVariationPopupDelegate: AnyObject {
-    func emojiVariationPopup(_ popup: EmojiVariationPopup, didSelectEmoji emoji: String)
+protocol CustomVariationPopupDelegate: AnyObject {
+    func customVariationPopup(_ popup: CustomVariationPopup, didSelectCustom custom: String)
 }
 
-class EmojiVariationPopup: UIView {
-    weak var delegate: EmojiVariationPopupDelegate?
+class CustomVariationPopup: UIView {
+    weak var delegate: CustomVariationPopupDelegate?
     private let variations: [String]
     private let stackView = UIStackView()
     private let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
@@ -45,13 +45,13 @@ class EmojiVariationPopup: UIView {
         ])
         
         // 이모지 레이블 생성
-        for emoji in variations {
+        for custom in variations {
             let container = UIView()
             container.layer.cornerRadius = 14
             container.layer.masksToBounds = true
             
             let lbl = UILabel()
-            lbl.text = emoji
+            lbl.text = custom
             lbl.font = .systemFont(ofSize: 26)
             lbl.textAlignment = .center
             lbl.translatesAutoresizingMaskIntoConstraints = false
@@ -99,7 +99,7 @@ class EmojiVariationPopup: UIView {
     }
     
     /// 현재 선택된 이모지를 반환합니다.
-    func getSelectedEmoji() -> String? {
+    func getSelectedCustom() -> String? {
         guard selectedIndex >= 0 && selectedIndex < variations.count else { return nil }
         return variations[selectedIndex]
     }

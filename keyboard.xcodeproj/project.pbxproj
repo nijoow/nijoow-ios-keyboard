@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		F15211592F86337B006DBDF4 /* njjoow-keyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F15211522F86337B006DBDF4 /* njjoow-keyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		F15211592F86337B006DBDF4 /* custom-keyboard.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F15211522F86337B006DBDF4 /* custom-keyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -30,7 +30,7 @@
 			containerPortal = F152111C2F8632EF006DBDF4 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = F15211512F86337B006DBDF4;
-			remoteInfo = "njjoow-keyboard";
+			remoteInfo = "custom-keyboard";
 		};
 /* End PBXContainerItemProxy section */
 
@@ -41,7 +41,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				F15211592F86337B006DBDF4 /* njjoow-keyboard.appex in Embed Foundation Extensions */,
+				F15211592F86337B006DBDF4 /* custom-keyboard.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -52,16 +52,16 @@
 		F15211242F8632EF006DBDF4 /* keyboard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = keyboard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F15211312F8632F1006DBDF4 /* keyboardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = keyboardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F152113B2F8632F1006DBDF4 /* keyboardUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = keyboardUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F15211522F86337B006DBDF4 /* njjoow-keyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "njjoow-keyboard.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F15211522F86337B006DBDF4 /* custom-keyboard.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "custom-keyboard.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		F152115A2F86337B006DBDF4 /* Exceptions for "njjoow-keyboard" folder in "njjoow-keyboard" target */ = {
+		F152115A2F86337B006DBDF4 /* Exceptions for "custom-keyboard" folder in "custom-keyboard" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = F15211512F86337B006DBDF4 /* njjoow-keyboard */;
+			target = F15211512F86337B006DBDF4 /* custom-keyboard */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -81,12 +81,12 @@
 			path = keyboardUITests;
 			sourceTree = "<group>";
 		};
-		F15211532F86337B006DBDF4 /* njjoow-keyboard */ = {
+		F15211532F86337B006DBDF4 /* custom-keyboard */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				F152115A2F86337B006DBDF4 /* Exceptions for "njjoow-keyboard" folder in "njjoow-keyboard" target */,
+				F152115A2F86337B006DBDF4 /* Exceptions for "custom-keyboard" folder in "custom-keyboard" target */,
 			);
-			path = "njjoow-keyboard";
+			path = "custom-keyboard";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -129,7 +129,7 @@
 				F15211262F8632EF006DBDF4 /* keyboard */,
 				F15211342F8632F1006DBDF4 /* keyboardTests */,
 				F152113E2F8632F1006DBDF4 /* keyboardUITests */,
-				F15211532F86337B006DBDF4 /* njjoow-keyboard */,
+				F15211532F86337B006DBDF4 /* custom-keyboard */,
 				F15211252F8632EF006DBDF4 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -140,7 +140,7 @@
 				F15211242F8632EF006DBDF4 /* keyboard.app */,
 				F15211312F8632F1006DBDF4 /* keyboardTests.xctest */,
 				F152113B2F8632F1006DBDF4 /* keyboardUITests.xctest */,
-				F15211522F86337B006DBDF4 /* njjoow-keyboard.appex */,
+				F15211522F86337B006DBDF4 /* custom-keyboard.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -218,9 +218,9 @@
 			productReference = F152113B2F8632F1006DBDF4 /* keyboardUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
-		F15211512F86337B006DBDF4 /* njjoow-keyboard */ = {
+		F15211512F86337B006DBDF4 /* custom-keyboard */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = F152115B2F86337B006DBDF4 /* Build configuration list for PBXNativeTarget "njjoow-keyboard" */;
+			buildConfigurationList = F152115B2F86337B006DBDF4 /* Build configuration list for PBXNativeTarget "custom-keyboard" */;
 			buildPhases = (
 				F152114E2F86337B006DBDF4 /* Sources */,
 				F152114F2F86337B006DBDF4 /* Frameworks */,
@@ -231,13 +231,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				F15211532F86337B006DBDF4 /* njjoow-keyboard */,
+				F15211532F86337B006DBDF4 /* custom-keyboard */,
 			);
-			name = "njjoow-keyboard";
+			name = "custom-keyboard";
 			packageProductDependencies = (
 			);
-			productName = "njjoow-keyboard";
-			productReference = F15211522F86337B006DBDF4 /* njjoow-keyboard.appex */;
+			productName = "custom-keyboard";
+			productReference = F15211522F86337B006DBDF4 /* custom-keyboard.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -283,7 +283,7 @@
 				F15211232F8632EF006DBDF4 /* keyboard */,
 				F15211302F8632F1006DBDF4 /* keyboardTests */,
 				F152113A2F8632F1006DBDF4 /* keyboardUITests */,
-				F15211512F86337B006DBDF4 /* njjoow-keyboard */,
+				F15211512F86337B006DBDF4 /* custom-keyboard */,
 			);
 		};
 /* End PBXProject section */
@@ -363,7 +363,7 @@
 		};
 		F15211582F86337B006DBDF4 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = F15211512F86337B006DBDF4 /* njjoow-keyboard */;
+			target = F15211512F86337B006DBDF4 /* custom-keyboard */;
 			targetProxy = F15211572F86337B006DBDF4 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -509,7 +509,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nijoow.keyboard;
+				PRODUCT_BUNDLE_IDENTIFIER = nijoow.custom.keyboard;
+				INFOPLIST_KEY_LSApplicationQueriesSchemes = "App-Prefs";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -542,7 +543,8 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nijoow.keyboard;
+				PRODUCT_BUNDLE_IDENTIFIER = nijoow.custom.keyboard;
+				INFOPLIST_KEY_LSApplicationQueriesSchemes = "App-Prefs";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -563,7 +565,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nijoow.keyboardTests;
+				PRODUCT_BUNDLE_IDENTIFIER = nijoow.custom.keyboard.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -584,7 +586,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nijoow.keyboardTests;
+				PRODUCT_BUNDLE_IDENTIFIER = nijoow.custom.keyboard.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -603,7 +605,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nijoow.keyboardUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = nijoow.custom.keyboard.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -622,7 +624,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = nijoow.keyboardUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = nijoow.custom.keyboard.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -641,8 +643,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = J57AAMZ25B;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "njjoow-keyboard/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "njjoow-keyboard";
+				INFOPLIST_FILE = "custom-keyboard/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "custom-keyboard";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.3;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -651,7 +653,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "nijoow.keyboard.njjoow-keyboard";
+				PRODUCT_BUNDLE_IDENTIFIER = nijoow.custom.keyboard.extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -670,8 +672,8 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = J57AAMZ25B;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = "njjoow-keyboard/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = "njjoow-keyboard";
+				INFOPLIST_FILE = "custom-keyboard/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "custom-keyboard";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 26.3;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -680,7 +682,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "nijoow.keyboard.njjoow-keyboard";
+				PRODUCT_BUNDLE_IDENTIFIER = nijoow.custom.keyboard.extension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -731,7 +733,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		F152115B2F86337B006DBDF4 /* Build configuration list for PBXNativeTarget "njjoow-keyboard" */ = {
+		F152115B2F86337B006DBDF4 /* Build configuration list for PBXNativeTarget "custom-keyboard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				F152115C2F86337B006DBDF4 /* Debug */,

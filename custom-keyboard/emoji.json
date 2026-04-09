@@ -1,7 +1,7 @@
 [
   {
     "groupName": "스마일리 & 감정",
-    "emojis": [
+    "customs": [
       {
         "char": "😀"
       },
@@ -519,7 +519,7 @@
   },
   {
     "groupName": "사람 & 신체",
-    "emojis": [
+    "customs": [
       {
         "char": "👋",
         "variations": [
@@ -8392,7 +8392,7 @@
   },
   {
     "groupName": "동물 & 자연",
-    "emojis": [
+    "customs": [
       {
         "char": "🐵"
       },
@@ -8877,7 +8877,7 @@
   },
   {
     "groupName": "음식 & 음료",
-    "emojis": [
+    "customs": [
       {
         "char": "🍇"
       },
@@ -9275,7 +9275,7 @@
   },
   {
     "groupName": "여행 & 장소",
-    "emojis": [
+    "customs": [
       {
         "char": "🌍"
       },
@@ -9937,7 +9937,7 @@
   },
   {
     "groupName": "활동",
-    "emojis": [
+    "customs": [
       {
         "char": "🎃"
       },
@@ -10197,7 +10197,7 @@
   },
   {
     "groupName": "사물",
-    "emojis": [
+    "customs": [
       {
         "char": "👓"
       },
@@ -11000,7 +11000,7 @@
   },
   {
     "groupName": "기호",
-    "emojis": [
+    "customs": [
       {
         "char": "🏧"
       },
@@ -11677,7 +11677,7 @@
   },
   {
     "groupName": "깃발",
-    "emojis": [
+    "customs": [
       {
         "char": "🏁"
       },
