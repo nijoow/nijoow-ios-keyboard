@@ -140,6 +140,85 @@ extension KeyboardViewController {
     textDocumentProxy.insertText("\n")
   }
 
+  // MARK: - 커서 이동 및 가속
+  
+  @objc func cursorTouchDown(_ sender: UIButton) {
+    guard let id = sender.accessibilityIdentifier else { return }
+    // 한 번 클릭 동작 수행
+    flushHangul()
+    triggerHaptic()
+    handleCursorMove(id: id)
+    
+    // 왼쪽/오른쪽 버튼인 경우에만 가속 타이머 작동
+    if id == "cursor_left" || id == "cursor_right" {
+      cursorRepeatCount = 0
+      cursorStartTimer?.invalidate()
+      cursorTimer?.invalidate()
+      cursorStartTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
+        self?.startContinuousCursorMove(id: id)
+      }
+    }
+  }
+  
+  @objc func cursorTouchUp(_ sender: UIButton) {
+    cursorStartTimer?.invalidate()
+    cursorTimer?.invalidate()
+  }
+  
+  private func handleCursorMove(id: String) {
+    switch id {
+    case "cursor_left":
+      textDocumentProxy.adjustTextPosition(byCharacterOffset: -1)
+    case "cursor_right":
+      textDocumentProxy.adjustTextPosition(byCharacterOffset: 1)
+    case "cursor_line_start":
+      let before = textDocumentProxy.documentContextBeforeInput ?? ""
+      if before.isEmpty || before.last == "\n" {
+        // 이미 줄의 맨 앞이면 이전 줄로 이동
+        textDocumentProxy.adjustTextPosition(byCharacterOffset: -1)
+      } else {
+        // 현재 줄의 맨 앞으로 이동
+        if let lastNewline = before.lastIndex(of: "\n") {
+          let offset = before.distance(from: lastNewline, to: before.endIndex) - 1
+          textDocumentProxy.adjustTextPosition(byCharacterOffset: -offset)
+        } else {
+          textDocumentProxy.adjustTextPosition(byCharacterOffset: -before.count)
+        }
+      }
+    case "cursor_line_end":
+      let after = textDocumentProxy.documentContextAfterInput ?? ""
+      if after.isEmpty || after.first == "\n" {
+        // 이미 줄의 맨 뒤면 다음 줄로 이동
+        textDocumentProxy.adjustTextPosition(byCharacterOffset: 1)
+      } else {
+        // 현재 줄의 맨 뒤로 이동
+        if let firstNewline = after.firstIndex(of: "\n") {
+          let offset = after.distance(from: after.startIndex, to: firstNewline)
+          textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+        } else {
+          textDocumentProxy.adjustTextPosition(byCharacterOffset: after.count)
+        }
+      }
+    default: break
+    }
+  }
+  
+  private func startContinuousCursorMove(id: String, interval: TimeInterval = 0.1) {
+    cursorTimer?.invalidate()
+    cursorTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+      guard let self = self else { return }
+      self.handleCursorMove(id: id)
+      self.triggerHaptic()
+      self.cursorRepeatCount += 1
+      
+      if self.cursorRepeatCount == 10 {
+        self.startContinuousCursorMove(id: id, interval: 0.05)
+      } else if self.cursorRepeatCount == 50 {
+        self.startContinuousCursorMove(id: id, interval: 0.03)
+      }
+    }
+  }
+
   @objc func emojiTapped() {
     flushHangul()
     isEmoji.toggle()

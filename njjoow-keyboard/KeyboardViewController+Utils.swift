@@ -7,43 +7,7 @@ import UIKit
 
 extension KeyboardViewController {
   
-  // MARK: - 커서 이동 처리
-  
-  @objc func cursorTapped(_ sender: KeyButton) {
-    flushHangul()
-    switch sender.keyValue {
-    case "cursor_left":
-      textDocumentProxy.adjustTextPosition(byCharacterOffset: -1)
-    case "cursor_right":
-      textDocumentProxy.adjustTextPosition(byCharacterOffset: 1)
-    case "cursor_line_start":
-      moveCursorToLineStart()
-    case "cursor_line_end":
-      moveCursorToLineEnd()
-    default:
-      break
-    }
-  }
-
-  func moveCursorToLineStart() {
-    let before = textDocumentProxy.documentContextBeforeInput ?? ""
-    if let lastNlRange = before.range(of: "\n", options: .backwards) {
-      let distance = before.distance(from: lastNlRange.upperBound, to: before.endIndex)
-      textDocumentProxy.adjustTextPosition(byCharacterOffset: -distance)
-    } else {
-      textDocumentProxy.adjustTextPosition(byCharacterOffset: -before.count)
-    }
-  }
-
-  func moveCursorToLineEnd() {
-    let after = textDocumentProxy.documentContextAfterInput ?? ""
-    if let firstNlIdx = after.firstIndex(of: "\n") {
-      let distance = after.distance(from: after.startIndex, to: firstNlIdx)
-      textDocumentProxy.adjustTextPosition(byCharacterOffset: distance)
-    } else {
-      textDocumentProxy.adjustTextPosition(byCharacterOffset: after.count)
-    }
-  }
+  // MARK: - 팝업 및 변체 입력 (Long Press)
 
   // MARK: - 팝업 및 변체 입력 (Long Press)
   

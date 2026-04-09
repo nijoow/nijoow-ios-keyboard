@@ -115,7 +115,12 @@ extension KeyboardViewController {
       let img = drawCursorImage(type: type, size: CGSize(width: 32, height: 32))
       btn.setImage(img.withRenderingMode(.alwaysTemplate), for: .normal)
       btn.tintColor = specialTextColor
-      btn.addTarget(self, action: #selector(cursorTapped(_:)), for: .touchUpInside)
+      
+      // 가속 및 스마트 이동을 위한 핸들러 연결
+      btn.accessibilityIdentifier = id
+      btn.addTarget(self, action: #selector(cursorTouchDown(_:)), for: .touchDown)
+      btn.addTarget(self, action: #selector(cursorTouchUp(_:)), for: [.touchUpInside, .touchUpOutside, .touchCancel])
+      
       stack.addArrangedSubview(btn)
     }
 

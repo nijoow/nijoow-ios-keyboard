@@ -32,7 +32,12 @@ class KeyboardViewController: UIInputViewController {
   // MARK: - Backspace 타이머
   var backspaceStartTimer: Timer?
   var backspaceTimer: Timer?
-  var backspaceRepeatCount: Int = 0 
+  var backspaceRepeatCount = 0
+  
+  // 커서 이동 가속 관련
+  var cursorTimer: Timer?
+  var cursorStartTimer: Timer?
+  var cursorRepeatCount = 0
   
   // MARK: - 테마 관련 감지
   var wasEmoji = false
