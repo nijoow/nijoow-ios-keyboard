@@ -11,6 +11,7 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
     weak var delegate: EmojiKeyboardViewDelegate?
     
     private var collectionView: UICollectionView!
+    private var dockScrollView: UIScrollView!
     private var dockStackView: UIStackView!
     
     private let provider = EmojiProvider.shared
@@ -47,8 +48,16 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         
         dockStackView = UIStackView()
         dockStackView.axis = .horizontal
-        dockStackView.distribution = .fillEqually
+        dockStackView.distribution = .fill
+        dockStackView.spacing = 18 // [개선] 버튼 사이의 간격을 넓혀 터치 오인식 방지
         dockStackView.translatesAutoresizingMaskIntoConstraints = false
+        
+        // [개선] 스크롤 가능한 카테고리 바 구현
+        dockScrollView = UIScrollView()
+        dockScrollView.showsHorizontalScrollIndicator = false
+        dockScrollView.translatesAutoresizingMaskIntoConstraints = false
+        dockContainer.addSubview(dockScrollView)
+        dockScrollView.addSubview(dockStackView)
         
         // 메인 키보드의 specialGlassColor와 유사하게 설정
         let dockBg = UIView()
@@ -65,18 +74,10 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         backspaceBtn.addTarget(self, action: #selector(backspaceTapped), for: .touchUpInside)
         backspaceBtn.translatesAutoresizingMaskIntoConstraints = false
         
-        dockContainer.addSubview(dockBg)
-        dockContainer.addSubview(dockStackView)
+        dockContainer.insertSubview(dockBg, at: 0)
         dockContainer.addSubview(backspaceBtn)
         
-        for (index, category) in provider.categories.enumerated() {
-            let btn = UIButton(type: .system)
-            btn.setTitle(category.icon, for: .normal)
-            btn.titleLabel?.font = UIFont.systemFont(ofSize: 20)
-            btn.tag = index
-            btn.addTarget(self, action: #selector(dockButtonTapped(_:)), for: .touchUpInside)
-            dockStackView.addArrangedSubview(btn)
-        }
+        setupDockButtons()
         
         // 2. Setup CollectionView
         let layout = UICollectionViewFlowLayout()
@@ -110,15 +111,21 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
             backspaceBtn.bottomAnchor.constraint(equalTo: dockContainer.bottomAnchor),
             backspaceBtn.widthAnchor.constraint(equalToConstant: 45),
             
-            dockStackView.leadingAnchor.constraint(equalTo: dockContainer.leadingAnchor),
-            dockStackView.trailingAnchor.constraint(equalTo: backspaceBtn.leadingAnchor, constant: -10),
-            dockStackView.topAnchor.constraint(equalTo: dockContainer.topAnchor),
-            dockStackView.bottomAnchor.constraint(equalTo: dockContainer.bottomAnchor),
+            dockScrollView.leadingAnchor.constraint(equalTo: dockContainer.leadingAnchor),
+            dockScrollView.trailingAnchor.constraint(equalTo: backspaceBtn.leadingAnchor, constant: -5),
+            dockScrollView.topAnchor.constraint(equalTo: dockContainer.topAnchor),
+            dockScrollView.bottomAnchor.constraint(equalTo: dockContainer.bottomAnchor),
             
-            dockBg.leadingAnchor.constraint(equalTo: dockStackView.leadingAnchor),
-            dockBg.trailingAnchor.constraint(equalTo: dockStackView.trailingAnchor),
-            dockBg.topAnchor.constraint(equalTo: dockStackView.topAnchor),
-            dockBg.bottomAnchor.constraint(equalTo: dockStackView.bottomAnchor),
+            dockStackView.leadingAnchor.constraint(equalTo: dockScrollView.contentLayoutGuide.leadingAnchor, constant: 5),
+            dockStackView.trailingAnchor.constraint(equalTo: dockScrollView.contentLayoutGuide.trailingAnchor, constant: -5),
+            dockStackView.topAnchor.constraint(equalTo: dockScrollView.contentLayoutGuide.topAnchor),
+            dockStackView.bottomAnchor.constraint(equalTo: dockScrollView.contentLayoutGuide.bottomAnchor),
+            dockStackView.heightAnchor.constraint(equalTo: dockScrollView.heightAnchor),
+            
+            dockBg.leadingAnchor.constraint(equalTo: dockScrollView.leadingAnchor),
+            dockBg.trailingAnchor.constraint(equalTo: dockScrollView.trailingAnchor),
+            dockBg.topAnchor.constraint(equalTo: dockScrollView.topAnchor),
+            dockBg.bottomAnchor.constraint(equalTo: dockScrollView.bottomAnchor),
             
             collectionView.topAnchor.constraint(equalTo: topAnchor),
             collectionView.leadingAnchor.constraint(equalTo: leadingAnchor),
@@ -128,6 +135,24 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         
         // [최적화] 초기화 시점에 데이터를 로드합니다.
         collectionView.reloadData()
+    }
+    
+    /// [고도화] 최근 사용 탭을 포함하여 도크 버튼들을 구성합니다.
+    private func setupDockButtons() {
+        // 기존 뷰 제거
+        dockStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        
+        for (index, category) in provider.categories.enumerated() {
+            var config = UIButton.Configuration.plain()
+            config.title = category.icon
+            config.baseForegroundColor = isDarkMode ? .white : .black
+            config.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 10) // 터치 영역 확보
+            
+            let btn = UIButton(configuration: config)
+            btn.tag = index
+            btn.addTarget(self, action: #selector(dockButtonTapped(_:)), for: .touchUpInside)
+            dockStackView.addArrangedSubview(btn)
+        }
     }
     
     private var currentPopup: EmojiVariationPopup?
@@ -155,7 +180,7 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
             
         case .ended:
             if let popup = currentPopup, let selectedEmoji = popup.getSelectedEmoji() {
-                delegate?.emojiKeyboardView(self, didSelectEmoji: selectedEmoji)
+                selectEmoji(selectedEmoji)
             }
             hideVariationPopup()
             
@@ -325,7 +350,27 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
     
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         let emoji = provider.categories[indexPath.section].emojis[indexPath.item]
+        selectEmoji(emoji)
+    }
+    
+    private func selectEmoji(_ emoji: String) {
+        // [수정] 최근 이용 기록 업데이트 및 전체 새로고침
+        let hadRecentBefore = !provider.recentEmojis.isEmpty
+        provider.addRecentEmoji(emoji)
+        let hasRecentNow = !provider.recentEmojis.isEmpty
+        
         delegate?.emojiKeyboardView(self, didSelectEmoji: emoji)
+        
+        // 최근 사용 탭이 처음 생기거나 목록이 바뀌면 UI 업데이트
+        if !hadRecentBefore && hasRecentNow {
+            setupDockButtons()
+            collectionView.reloadData()
+        } else {
+            // 이미 최근 사용 탭이 있으면 해당 섹션만 새로고침 (애니메이션 없이 조용히)
+            UIView.performWithoutAnimation {
+                collectionView.reloadSections(IndexSet(integer: 0))
+            }
+        }
     }
 }
 
@@ -362,8 +407,8 @@ class EmojiHeaderView: UICollectionReusableView {
 
 extension EmojiKeyboardView: EmojiVariationPopupDelegate {
     func emojiVariationPopup(_ popup: EmojiVariationPopup, didSelectEmoji emoji: String) {
-        // 선택된 가변 이모지 입력
-        delegate?.emojiKeyboardView(self, didSelectEmoji: emoji)
+        // 선택된 가변 이모지 입력 및 최근 사용 업데이트
+        selectEmoji(emoji)
         
         // 팝업 제거
         popup.removeFromSuperview()
