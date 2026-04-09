@@ -28,9 +28,9 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
     
     override func layoutSubviews() {
         super.layoutSubviews()
-        collectionView.collectionViewLayout.invalidateLayout()
-        // 사이즈가 결정된 후 데이터를 다시 로드하여 렌더링 보장
-        collectionView.reloadData()
+        // [최적화] 여기서 reloadData()나 invalidateLayout()을 호출하면 
+        // 팝업이 뜰 때마다 수천 개의 셀을 다시 그리게 되어 메모리 크래시가 발생합니다.
+        // 오토레이아웃으로 제약 조건만 업데이트되도록 합니다.
     }
     
     private func setupView() {
@@ -94,6 +94,11 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(collectionView)
         
+        // 4. Long Press Gesture 추가
+        let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        longPress.minimumPressDuration = 0.4
+        collectionView.addGestureRecognizer(longPress)
+        
         NSLayoutConstraint.activate([
             dockContainer.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
             dockContainer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
@@ -120,6 +125,110 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
             collectionView.trailingAnchor.constraint(equalTo: trailingAnchor),
             collectionView.bottomAnchor.constraint(equalTo: dockContainer.topAnchor, constant: -5)
         ])
+        
+        // [최적화] 초기화 시점에 데이터를 로드합니다.
+        collectionView.reloadData()
+    }
+    
+    private var currentPopup: EmojiVariationPopup?
+
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        let pointInCollectionView = gesture.location(in: collectionView)
+        let pointInView = gesture.location(in: self)
+        
+        switch gesture.state {
+        case .began:
+            guard let indexPath = collectionView.indexPathForItem(at: pointInCollectionView),
+                  let cell = collectionView.cellForItem(at: indexPath) as? EmojiCell,
+                  let emoji = cell.label.text else { return }
+            
+            if EmojiProvider.shared.supportsSkinTone(emoji) {
+                delegate?.emojiKeyboardViewDidRequestHaptic(self)
+                showVariationPopup(for: emoji, at: cell)
+                updateVariationSelection(at: pointInView)
+            }
+            
+        case .changed:
+            if currentPopup != nil {
+                updateVariationSelection(at: pointInView)
+            }
+            
+        case .ended:
+            if let popup = currentPopup, let selectedEmoji = popup.getSelectedEmoji() {
+                delegate?.emojiKeyboardView(self, didSelectEmoji: selectedEmoji)
+            }
+            hideVariationPopup()
+            
+        case .cancelled, .failed:
+            hideVariationPopup()
+            
+        default:
+            break
+        }
+    }
+    
+    private func updateVariationSelection(at pointInView: CGPoint) {
+        guard let popup = currentPopup else { return }
+        
+        // [수정] 팝업이 이제 superview(최상위 뷰)에 있으므로, 
+        // 현재 뷰(self)의 좌표를 팝업의 좌표계로 정확히 변환해야 합니다.
+        let localPoint = convert(pointInView, to: popup)
+        
+        let stackView = popup.subviews.compactMap { $0 as? UIStackView }.first
+        let itemCount = stackView?.arrangedSubviews.count ?? 1
+        let itemWidth = popup.bounds.width / CGFloat(max(1, itemCount))
+        
+        // [안전 장치] 레이아웃이 미처 잡히지 않아 itemWidth가 0인 경우 크래시 방지
+        guard itemWidth > 0 else { return }
+        
+        var index = Int(localPoint.x / itemWidth)
+        let maxIndex = (popup.subviews.compactMap { $0 as? UIStackView }.first?.arrangedSubviews.count ?? 1) - 1
+        
+        if index < 0 { index = 0 }
+        if index > maxIndex { index = maxIndex }
+        
+        if popup.selectedIndex != index {
+            delegate?.emojiKeyboardViewDidRequestHaptic(self)
+            popup.updateSelection(at: index)
+        }
+    }
+    
+    private func hideVariationPopup() {
+        currentPopup?.removeFromSuperview()
+        currentPopup = nil
+    }
+    
+    private func showVariationPopup(for emoji: String, at cell: UICollectionViewCell) {
+        hideVariationPopup()
+        
+        // [수정] 팝업이 키보드 영역 밖으로(상단으로) 나갈 수 있도록 최상위 뷰에 추가합니다.
+        guard let superview = self.superview else { return }
+        
+        let variations = EmojiProvider.shared.getVariations(for: emoji)
+        let popup = EmojiVariationPopup(variations: variations, isDarkMode: isDarkMode)
+        popup.translatesAutoresizingMaskIntoConstraints = false
+        superview.addSubview(popup)
+        
+        // 셀의 위치를 최상위 뷰 기준으로 변환합니다.
+        let cellFrameInSuperview = cell.convert(cell.bounds, to: superview)
+        let popupWidth = CGFloat(variations.count * 46 + 16)
+        
+        // 제약 조건 설정 (Edge Safety 적용)
+        let centerXConstraint = popup.centerXAnchor.constraint(equalTo: superview.leadingAnchor, constant: cellFrameInSuperview.midX)
+        centerXConstraint.priority = .defaultHigh // 중앙 정렬보다 화면 이탈 방지를 더 우선시함
+        
+        NSLayoutConstraint.activate([
+            popup.bottomAnchor.constraint(equalTo: superview.topAnchor, constant: cellFrameInSuperview.minY - 12),
+            centerXConstraint,
+            // [Edge Safety] 화면 좌우 끝에서 8pt 이상의 여백을 강제함
+            popup.leadingAnchor.constraint(greaterThanOrEqualTo: superview.leadingAnchor, constant: 8),
+            popup.trailingAnchor.constraint(lessThanOrEqualTo: superview.trailingAnchor, constant: -8),
+            popup.widthAnchor.constraint(equalToConstant: popupWidth),
+            popup.heightAnchor.constraint(equalToConstant: 52)
+        ])
+        
+        currentPopup = popup
+        delegate?.emojiKeyboardViewDidRequestHaptic(self)
     }
     
     @objc private func dockButtonTapped(_ sender: UIButton) {
@@ -179,10 +288,14 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
              header.backgroundColor = isDarkMode ? UIColor(white: 0.2, alpha: 0.3) : UIColor(white: 1, alpha: 0.4)
              
              // Blur Effect
-             if header.viewWithTag(99) == nil {
+             // [최적화] 블러 뷰가 이미 존재하는지 체크하고, 없다면 생성합니다.
+             if let existingBlur = header.viewWithTag(99) as? UIVisualEffectView {
+                 existingBlur.effect = UIBlurEffect(style: isDarkMode ? .dark : .extraLight)
+             } else {
                  let blurEffect = UIBlurEffect(style: isDarkMode ? .dark : .extraLight)
                  let blurView = UIVisualEffectView(effect: blurEffect)
                  blurView.tag = 99
+                 blurView.alpha = 0.5 // 메모리 및 렌더링 가독성을 위해 투명도 살짝 적용
                  blurView.translatesAutoresizingMaskIntoConstraints = false
                  header.insertSubview(blurView, at: 0)
                  NSLayoutConstraint.activate([
@@ -245,4 +358,15 @@ class EmojiHeaderView: UICollectionReusableView {
         ])
     }
     required init?(coder: NSCoder) { fatalError() }
+}
+
+extension EmojiKeyboardView: EmojiVariationPopupDelegate {
+    func emojiVariationPopup(_ popup: EmojiVariationPopup, didSelectEmoji emoji: String) {
+        // 선택된 가변 이모지 입력
+        delegate?.emojiKeyboardView(self, didSelectEmoji: emoji)
+        
+        // 팝업 제거
+        popup.removeFromSuperview()
+        currentPopup = nil
+    }
 }
