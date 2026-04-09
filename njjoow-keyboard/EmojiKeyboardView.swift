@@ -3,6 +3,7 @@ import UIKit
 protocol EmojiKeyboardViewDelegate: AnyObject {
     func emojiKeyboardView(_ view: EmojiKeyboardView, didSelectEmoji emoji: String)
     func emojiKeyboardViewDidTapBackspace(_ view: EmojiKeyboardView)
+    func emojiKeyboardViewDidRequestHaptic(_ view: EmojiKeyboardView)
 }
 
 class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
@@ -28,10 +29,18 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
     override func layoutSubviews() {
         super.layoutSubviews()
         collectionView.collectionViewLayout.invalidateLayout()
+        // 사이즈가 결정된 후 데이터를 다시 로드하여 렌더링 보장
+        collectionView.reloadData()
     }
     
     private func setupView() {
-        // 1. Setup dock container
+        // 배경색 설정 (뒤의 버튼들이 보이지 않도록 불투명하게 처리)
+        // 키보드 전체의 유리 질감과 어울리도록 짙은 색상 적용
+        self.backgroundColor = isDarkMode ? UIColor(white: 0.05, alpha: 1.0) : UIColor(white: 0.9, alpha: 1.0)
+        self.layer.cornerRadius = 12
+        self.clipsToBounds = true
+        
+        // 1. Setup dock container (카테고리 바)
         let dockContainer = UIView()
         dockContainer.translatesAutoresizingMaskIntoConstraints = false
         addSubview(dockContainer)
@@ -41,17 +50,18 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         dockStackView.distribution = .fillEqually
         dockStackView.translatesAutoresizingMaskIntoConstraints = false
         
+        // 메인 키보드의 specialGlassColor와 유사하게 설정
         let dockBg = UIView()
-        dockBg.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.1) : UIColor(white: 0.2, alpha: 0.1)
-        dockBg.layer.cornerRadius = 8
+        dockBg.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.08) : UIColor(white: 0.2, alpha: 0.05)
+        dockBg.layer.cornerRadius = 10
         dockBg.translatesAutoresizingMaskIntoConstraints = false
         
         let backspaceBtn = UIButton(type: .system)
         backspaceBtn.setTitle("⌫", for: .normal)
-        backspaceBtn.titleLabel?.font = UIFont.systemFont(ofSize: 22)
+        backspaceBtn.titleLabel?.font = UIFont.systemFont(ofSize: 20, weight: .medium)
         backspaceBtn.setTitleColor(isDarkMode ? .white : .black, for: .normal)
-        backspaceBtn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.15) : UIColor(white: 0.2, alpha: 0.15)
-        backspaceBtn.layer.cornerRadius = 8
+        backspaceBtn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.12) : UIColor(white: 0.0, alpha: 0.1)
+        backspaceBtn.layer.cornerRadius = 10
         backspaceBtn.addTarget(self, action: #selector(backspaceTapped), for: .touchUpInside)
         backspaceBtn.translatesAutoresizingMaskIntoConstraints = false
         
@@ -85,10 +95,10 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
         addSubview(collectionView)
         
         NSLayoutConstraint.activate([
-            dockContainer.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -5),
-            dockContainer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
-            dockContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -10),
-            dockContainer.heightAnchor.constraint(equalToConstant: 35),
+            dockContainer.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+            dockContainer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            dockContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -3),
+            dockContainer.heightAnchor.constraint(equalToConstant: 38),
             
             backspaceBtn.trailingAnchor.constraint(equalTo: dockContainer.trailingAnchor),
             backspaceBtn.topAnchor.constraint(equalTo: dockContainer.topAnchor),
@@ -115,8 +125,24 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
     @objc private func dockButtonTapped(_ sender: UIButton) {
         let section = sender.tag
         let indexPath = IndexPath(item: 0, section: section)
-        if let attributes = collectionView.layoutAttributesForSupplementaryElement(ofKind: UICollectionView.elementKindSectionHeader, at: indexPath) {
-            collectionView.setContentOffset(CGPoint(x: 0, y: attributes.frame.origin.y - collectionView.contentInset.top), animated: true)
+        
+        let headerHeight: CGFloat = 30
+        
+        // 해당 섹션에 아이템이 있는지 확인
+        if collectionView.numberOfSections > section && collectionView.numberOfItems(inSection: section) > 0 {
+            // 아이템의 레이아웃 성질을 가져옴
+            if let attributes = collectionView.layoutAttributesForItem(at: indexPath) {
+                // 아이템 위치에서 헤더 높이만큼 뺀 지점이 실제 섹션의 시작점
+                var targetY = attributes.frame.origin.y - headerHeight
+                
+                // 컨텐츠 범위를 벗어나지 않도록 제한
+                let maxOffsetY = collectionView.contentSize.height - collectionView.bounds.height
+                if targetY > maxOffsetY { targetY = maxOffsetY }
+                if targetY < 0 { targetY = 0 }
+                
+                collectionView.setContentOffset(CGPoint(x: 0, y: targetY), animated: true)
+                delegate?.emojiKeyboardViewDidRequestHaptic(self)
+            }
         }
     }
     
@@ -137,23 +163,24 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "EmojiCell", for: indexPath) as! EmojiCell
         cell.label.text = provider.categories[indexPath.section].emojis[indexPath.item]
+        cell.label.textColor = isDarkMode ? .white : .black
         return cell
     }
     
     func collectionView(_ collectionView: UICollectionView, viewForSupplementaryElementOfKind kind: String, at indexPath: IndexPath) -> UICollectionReusableView {
         let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "EmojiHeader", for: indexPath) as! EmojiHeaderView
         header.label.text = provider.categories[indexPath.section].title
-        header.label.textColor = isDarkMode ? UIColor(white: 0.8, alpha: 1) : .darkGray
+        header.label.textColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.9) : .black
         
-        // 투명도 있는 배경색 (Glassmorphism에 어울리게)
+        // 투명도 있는 배경색 (Glassmorphism 헤더)
         if UIAccessibility.isReduceTransparencyEnabled {
              header.backgroundColor = isDarkMode ? .black : .white
         } else {
-             header.backgroundColor = isDarkMode ? UIColor(white: 0, alpha: 0.4) : UIColor(white: 1, alpha: 0.6)
+             header.backgroundColor = isDarkMode ? UIColor(white: 0.2, alpha: 0.3) : UIColor(white: 1, alpha: 0.4)
              
              // Blur Effect
              if header.viewWithTag(99) == nil {
-                 let blurEffect = UIBlurEffect(style: isDarkMode ? .dark : .light)
+                 let blurEffect = UIBlurEffect(style: isDarkMode ? .dark : .extraLight)
                  let blurView = UIVisualEffectView(effect: blurEffect)
                  blurView.tag = 99
                  blurView.translatesAutoresizingMaskIntoConstraints = false
@@ -173,13 +200,14 @@ class EmojiKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDel
     // MARK: - UICollectionViewDelegateFlowLayout
     
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
-        let referenceWidth = collectionView.bounds.width > 0 ? collectionView.bounds.width : UIScreen.main.bounds.width
+        let referenceWidth = collectionView.bounds.width > 0 ? collectionView.bounds.width : self.bounds.width
         let width = referenceWidth / 8
         return CGSize(width: width, height: width) // 정사각형 유지
     }
     
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, referenceSizeForHeaderInSection section: Int) -> CGSize {
-        return CGSize(width: collectionView.bounds.width, height: 30)
+        let width = collectionView.bounds.width > 0 ? collectionView.bounds.width : self.bounds.width
+        return CGSize(width: width, height: 30)
     }
     
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {

@@ -42,15 +42,23 @@ extension KeyboardViewController {
   }
 
   private func setupEmojiPanel(under utilRow: UIView, above botRow: UIView) {
-    let emojiView = makeEmojiPanel()
+    let emojiView = EmojiKeyboardView(isDarkMode: isDarkMode)
+    emojiView.delegate = self
     emojiView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(emojiView)
+    
+    // 한영 키보드의 (숫자행 1 + 문자행 3 + 행간 간격 3 + 상하 여백 2) = 199pt
+    let totalHeight: CGFloat = 185
+    
     NSLayoutConstraint.activate([
       emojiView.topAnchor.constraint(equalTo: utilRow.bottomAnchor, constant: 7),
       emojiView.bottomAnchor.constraint(equalTo: botRow.topAnchor, constant: -7),
       emojiView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
-      emojiView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6)
+      emojiView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
+      emojiView.heightAnchor.constraint(equalToConstant: totalHeight)
     ])
+    
+    view.layoutIfNeeded()
   }
 
   private func setupMainContentStack(under utilRow: UIView, above botRow: UIView) {
@@ -190,49 +198,7 @@ extension KeyboardViewController {
     return container
   }
 
-  func makeEmojiPanel() -> UIView {
-    let scrollView = UIScrollView()
-    scrollView.showsVerticalScrollIndicator = true
-    let containerStack = UIStackView()
-    containerStack.axis = .vertical
-    containerStack.spacing = 7
-    containerStack.translatesAutoresizingMaskIntoConstraints = false
-    scrollView.addSubview(containerStack)
-
-    let cols = 8
-    var idx = 0
-    while idx < KeyboardConstants.COMMON_EMOJIS.count {
-      let rowStack = UIStackView()
-      rowStack.axis = .horizontal
-      rowStack.distribution = .fillEqually
-      rowStack.spacing = 5
-
-      for i in idx..<min(idx + cols, KeyboardConstants.COMMON_EMOJIS.count) {
-        let emoji = KeyboardConstants.COMMON_EMOJIS[i]
-        let btn = UIButton(type: .system)
-        btn.setTitle(emoji, for: .normal)
-        btn.titleLabel?.font = UIFont.systemFont(ofSize: 26)
-        btn.backgroundColor = keyGlassColor
-        btn.layer.cornerRadius = 8
-        btn.layer.borderWidth = 0.5
-        btn.layer.borderColor = keyBorderColor
-        btn.accessibilityLabel = emoji
-        btn.addTarget(self, action: #selector(emojiKeyTapped(_:)), for: .touchUpInside)
-        rowStack.addArrangedSubview(btn)
-      }
-      containerStack.addArrangedSubview(rowStack)
-      idx += cols
-    }
-
-    NSLayoutConstraint.activate([
-      containerStack.topAnchor.constraint(equalTo: scrollView.contentLayoutGuide.topAnchor),
-      containerStack.bottomAnchor.constraint(equalTo: scrollView.contentLayoutGuide.bottomAnchor),
-      containerStack.leadingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.leadingAnchor),
-      containerStack.trailingAnchor.constraint(equalTo: scrollView.contentLayoutGuide.trailingAnchor),
-      containerStack.widthAnchor.constraint(equalTo: scrollView.frameLayoutGuide.widthAnchor)
-    ])
-    return scrollView
-  }
+  // 레거시 makeEmojiPanel 제거됨 (EmojiKeyboardView로 대체)
 
   // MARK: - 버튼 팩토리
   

@@ -130,6 +130,7 @@ extension KeyboardViewController {
   @objc func symbolTapped() {
     triggerHaptic()
     isSymbol.toggle()
+    isEmoji = false // 이모지 모드 해제
     // 기호 모드 진입 시 시프트 상태 초기화 (1/2 페이지부터 시작)
     isShifted = false
     rebuildKeyboard()
@@ -299,5 +300,23 @@ extension KeyboardViewController {
         self.startContinuousBackspace(interval: 0.03)
       }
     }
+  }
+}
+
+// MARK: - EmojiKeyboardViewDelegate
+
+extension KeyboardViewController: EmojiKeyboardViewDelegate {
+  func emojiKeyboardView(_ view: EmojiKeyboardView, didSelectEmoji emoji: String) {
+    triggerHaptic()
+    textDocumentProxy.insertText(emoji)
+  }
+  
+  func emojiKeyboardViewDidTapBackspace(_ view: EmojiKeyboardView) {
+    triggerHaptic()
+    handleBackspace()
+  }
+  
+  func emojiKeyboardViewDidRequestHaptic(_ view: EmojiKeyboardView) {
+    triggerHaptic()
   }
 }
