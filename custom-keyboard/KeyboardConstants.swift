@@ -54,5 +54,5 @@ struct KeyboardConstants {
   static let NUMBER_ROW_H: CGFloat = 38
   static let MAIN_KEY_H: CGFloat = 42
   static let BOTTOM_ROW_H: CGFloat = 38
-  static let CORNER_RADIUS: CGFloat = 8
+  static let CORNER_RADIUS: CGFloat = 12
 }

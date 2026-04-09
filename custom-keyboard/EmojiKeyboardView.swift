@@ -35,9 +35,8 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
     }
     
     private func setupView() {
-        // 배경색 설정 (뒤의 버튼들이 보이지 않도록 불투명하게 처리)
-        // 키보드 전체의 유리 질감과 어울리도록 짙은 색상 적용
-        self.backgroundColor = isDarkMode ? UIColor(white: 0.05, alpha: 1.0) : UIColor(white: 0.9, alpha: 1.0)
+        // [옵시디언 블랙] 더욱 깊고 럭셔리한 다크 배경
+        self.backgroundColor = UIColor(red: 0.03, green: 0.03, blue: 0.03, alpha: 0.96)
         self.layer.cornerRadius = 12
         self.clipsToBounds = true
         
@@ -59,17 +58,17 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         dockContainer.addSubview(dockScrollView)
         dockScrollView.addSubview(dockStackView)
         
-        // 메인 키보드의 specialGlassColor와 유사하게 설정
+        // [옵시디언 블랙] 스모키 유리 배경
         let dockBg = UIView()
-        dockBg.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.08) : UIColor(white: 0.2, alpha: 0.05)
+        dockBg.backgroundColor = UIColor(white: 1.0, alpha: 0.08)
         dockBg.layer.cornerRadius = 10
         dockBg.translatesAutoresizingMaskIntoConstraints = false
         
         let backspaceBtn = UIButton(type: .system)
         backspaceBtn.setTitle("⌫", for: .normal)
         backspaceBtn.titleLabel?.font = UIFont.systemFont(ofSize: 20, weight: .medium)
-        backspaceBtn.setTitleColor(isDarkMode ? .white : .black, for: .normal)
-        backspaceBtn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.12) : UIColor(white: 0.0, alpha: 0.1)
+        backspaceBtn.setTitleColor(.white, for: .normal)
+        backspaceBtn.backgroundColor = UIColor(white: 1.0, alpha: 0.12)
         backspaceBtn.layer.cornerRadius = 10
         backspaceBtn.addTarget(self, action: #selector(backspaceTapped), for: .touchUpInside)
         backspaceBtn.translatesAutoresizingMaskIntoConstraints = false

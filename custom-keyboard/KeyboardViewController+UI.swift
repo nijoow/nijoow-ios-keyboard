@@ -213,12 +213,12 @@ extension KeyboardViewController {
     btn.normalBackgroundColor = btn.backgroundColor
     
     btn.layer.cornerRadius = KeyboardConstants.CORNER_RADIUS
-    btn.layer.borderWidth = 0.5
+    btn.layer.borderWidth = 0.8 // 테두리를 조금 더 선명하게 (실버 에지 감성)
     btn.layer.borderColor = keyBorderColor
     btn.layer.shadowColor = UIColor.black.cgColor
-    btn.layer.shadowOffset = CGSize(width: 0, height: 1)
-    btn.layer.shadowOpacity = isDarkMode ? 0.5 : 0.15
-    btn.layer.shadowRadius = isDarkMode ? 4 : 2
+    btn.layer.shadowOffset = CGSize(width: 0, height: 2) // 그림자를 살짝 아래로 내려 더 깊은 공간감 부여
+    btn.layer.shadowOpacity = 0.6 // 그림자를 조금 더 진하게 하여 버튼을 부각
+    btn.layer.shadowRadius = 5
     btn.isExclusiveTouch = true // 버튼 간 터치 간섭 방지
     
     btn.addTarget(self, action: #selector(hapticTouchDown(_:)), for: .touchDown)
@@ -237,8 +237,8 @@ extension KeyboardViewController {
   func makeDummyButton() -> KeyButton {
     let btn = makeGlassButton(title: "", id: "dummy", isSpecial: true)
     btn.isUserInteractionEnabled = false // 터치 방지
-    btn.alpha = 0.3 // 사용자 설정값: 실제 버튼보다 투명하게
-    btn.layer.cornerRadius = 4 // 사용자 설정값: 약간의 곡률 유지
+    btn.alpha = 0.2 // 옵시디언 테마에 맞춰 더 투명하게
+    btn.layer.cornerRadius = KeyboardConstants.CORNER_RADIUS / 2
     return btn
   }
 
@@ -262,7 +262,7 @@ extension KeyboardViewController {
       
       if id == "shift" {
         let isActive = isShifted || isShiftLocked
-        let activeColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.3) : UIColor(white: 0.0, alpha: 0.25)
+        let activeColor = activeGlassColor // 이미 정의된 럭셔리 액티브 색상 사용
         let normalColor = isSpecial ? specialGlassColor : keyGlassColor
         
         btn.backgroundColor = isActive ? activeColor : normalColor
@@ -276,7 +276,6 @@ extension KeyboardViewController {
           btn.setTitle(shiftTitle, for: .normal)
           btn.titleLabel?.font = UIFont.systemFont(ofSize: KeyboardConstants.KEY_FONT_SIZE, weight: .medium)
         }
-        // continue를 제거하여 아래의 공통 속성(그림자, 테두리 등) 업데이트를 수행하도록 함
       }
       
       if id != "shift" {
@@ -287,7 +286,7 @@ extension KeyboardViewController {
       btn.setTitleColor(isSpecial ? specialTextColor : keyTextColor, for: .normal)
       btn.tintColor = isSpecial ? specialTextColor : keyTextColor
       btn.layer.borderColor = keyBorderColor
-      btn.layer.shadowOpacity = isDarkMode ? 0.5 : 0.15
+      btn.layer.shadowOpacity = 0.6 // 옵시디언 다크 테마에 맞게 일관된 그림자 유지
     }
   }
 

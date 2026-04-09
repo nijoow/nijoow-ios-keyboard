@@ -55,25 +55,29 @@ class KeyboardViewController: UIInputViewController {
     AudioServicesPlaySystemSound(1519)
   }
 
-  // MARK: - 색상 테마 (글래스모피즘)
+  // MARK: - 색상 테마 (옵시디언 블랙 럭셔리)
   var keyGlassColor: UIColor {
-    return isDarkMode ? UIColor(white: 1.0, alpha: 0.14) : UIColor(white: 1.0, alpha: 0.28)
+    // 흑요석처럼 깊은 검정빛 반투명 (Smoky Black Glass)
+    return UIColor(red: 0.05, green: 0.05, blue: 0.05, alpha: 0.45)
   }
 
   var specialGlassColor: UIColor {
-    return isDarkMode ? UIColor(white: 1.0, alpha: 0.06) : UIColor(white: 0.2, alpha: 0.06)
+    // 특수 키는 더 투명하고 깊은 느낌으로 처리
+    return UIColor(red: 0.02, green: 0.02, blue: 0.02, alpha: 0.35)
   }
 
   var activeGlassColor: UIColor {
-    return isDarkMode ? UIColor(white: 1.0, alpha: 0.5) : UIColor(white: 0.5, alpha: 0.3)
+    // 활성화 상태(시프트 등)는 내부에서 빛이 은은하게 감도는 화이트 틴트
+    return UIColor(white: 1.0, alpha: 0.15)
   }
 
   var keyBorderColor: CGColor {
-    return isDarkMode ? UIColor(white: 1.0, alpha: 0.12).cgColor : UIColor(white: 0.0, alpha: 0.08).cgColor
+    // 실버 에지(Edge) 느낌을 주는 정교한 화이트 오파시티 테두리
+    return UIColor(white: 1.0, alpha: 0.18).cgColor
   }
 
-  var keyTextColor: UIColor { return isDarkMode ? .white : .black }
-  var specialTextColor: UIColor { return isDarkMode ? UIColor(white: 0.85, alpha: 1) : .darkGray }
+  var keyTextColor: UIColor { return .white } // 명확한 화이트 텍스트
+  var specialTextColor: UIColor { return UIColor(white: 0.75, alpha: 1.0) } // 고급스런 실버/그레이 톤
 
   // MARK: - Lifecycle
   override func viewWillAppear(_ animated: Bool) {

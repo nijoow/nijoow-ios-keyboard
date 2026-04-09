@@ -8,7 +8,7 @@ class CustomVariationPopup: UIView {
     weak var delegate: CustomVariationPopupDelegate?
     private let variations: [String]
     private let stackView = UIStackView()
-    private let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .systemThinMaterial))
+    private let blurView = UIVisualEffectView(effect: UIBlurEffect(style: .dark))
     
     private var labels: [UILabel] = []
     private(set) var selectedIndex: Int = -1
@@ -28,6 +28,7 @@ class CustomVariationPopup: UIView {
         // 블러 배경
         blurView.layer.cornerRadius = 20
         blurView.layer.masksToBounds = true
+        blurView.alpha = 0.95 // [옵시디언 블랙] 더 짙은 투명도
         addSubview(blurView)
         
         // 스택 뷰 설정
@@ -70,9 +71,9 @@ class CustomVariationPopup: UIView {
         
         // 그림자 효과
         layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.25
-        layer.shadowOffset = CGSize(width: 0, height: 4)
-        layer.shadowRadius = 10
+        layer.shadowOpacity = 0.5 // [옵시디언 블랙] 더 명확한 그림자
+        layer.shadowOffset = CGSize(width: 0, height: 6)
+        layer.shadowRadius = 12
     }
     
     override func layoutSubviews() {
@@ -88,7 +89,8 @@ class CustomVariationPopup: UIView {
         for (i, label) in labels.enumerated() {
             if let container = label.superview {
                 if i == index {
-                    container.backgroundColor = UIColor.white.withAlphaComponent(0.3)
+                    // [옵시디언 블랙] 실버 하이라이트
+                    container.backgroundColor = UIColor(white: 1.0, alpha: 0.25)
                     label.transform = CGAffineTransform(scaleX: 1.15, y: 1.15)
                 } else {
                     container.backgroundColor = .clear
