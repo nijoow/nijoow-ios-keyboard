@@ -78,8 +78,8 @@ extension KeyboardViewController {
         [KeyboardConstants.SYM_ROW1_NORMAL, KeyboardConstants.SYM_ROW2_NORMAL, KeyboardConstants.SYM_ROW3_NORMAL]
       
       let v1 = makeEqualRow(keys: rows[0], rowOffset: 400)
-      let v2 = makeEqualRow(keys: rows[1], rowOffset: 500)
-      let v3 = makeShiftRow(middleKeys: rows[2], keyValues: rows[2], rowOffset: 600)
+      let v2 = makeLetterRowStack(rows[1], rowOffset: 500) // 9키 대응 로직 사용
+      let v3 = makeShiftRow(middleKeys: rows[2], keyValues: rows[2], rowOffset: 600) // 7키 대응 로직 사용
       
       [v1, v2, v3].forEach {
         $0.heightAnchor.constraint(equalToConstant: KeyboardConstants.MAIN_KEY_H).isActive = true
@@ -138,8 +138,9 @@ extension KeyboardViewController {
 
   func makeBottomRow() -> UIView {
     let container = UIView()
+    container.clipsToBounds = false // 가장자리 터치 및 애니메이션 잘림 방지
     let symBtnTitle = isSymbol ? (isHangul ? "한글" : "ENG") : "♥︎"
-    let symBtn = makeGlassButton(title: symBtnTitle, id: "symbol", isSpecial: true, tag: 201, fontSize:18)
+    let symBtn = makeGlassButton(title: symBtnTitle, id: "symbol", isSpecial: true, tag: 201, fontSize:16)
     symBtn.addTarget(self, action: #selector(symbolTapped), for: .touchUpInside)
 
     let langBtn = makeGlassButton(title: isHangul ? "ENG" : "한글", id: "lang", isSpecial: true, tag: 202, fontSize:16)
@@ -231,13 +232,14 @@ extension KeyboardViewController {
   // MARK: - 버튼 팩토리
   
   func makeGlassButton(title: String, id: String, isSpecial: Bool, tag: Int = 0, fontSize: CGFloat? = nil) -> KeyButton {
-    let btn = KeyButton(type: .system)
+    let btn = KeyButton(type: .custom)
     btn.tag = tag
     btn.keyValue = id
     btn.setTitle(title, for: .normal)
     btn.titleLabel?.font = UIFont.systemFont(ofSize: fontSize ?? KeyboardConstants.KEY_FONT_SIZE, weight: isSpecial ? .medium : .regular)
     btn.setTitleColor(isSpecial ? specialTextColor : keyTextColor, for: .normal)
     btn.backgroundColor = isSpecial ? specialGlassColor : keyGlassColor
+    btn.normalBackgroundColor = btn.backgroundColor
     
     btn.layer.cornerRadius = KeyboardConstants.CORNER_RADIUS
     btn.layer.borderWidth = 0.5
@@ -246,6 +248,7 @@ extension KeyboardViewController {
     btn.layer.shadowOffset = CGSize(width: 0, height: 1)
     btn.layer.shadowOpacity = isDarkMode ? 0.5 : 0.15
     btn.layer.shadowRadius = isDarkMode ? 4 : 2
+    btn.isExclusiveTouch = true // 버튼 간 터치 간섭 방지
     
     btn.addTarget(self, action: #selector(hapticTouchDown(_:)), for: .touchDown)
 
@@ -257,6 +260,14 @@ extension KeyboardViewController {
     }
 
     allKeyButtons.append(btn)
+    return btn
+  }
+
+  func makeDummyButton() -> KeyButton {
+    let btn = makeGlassButton(title: "", id: "dummy", isSpecial: true)
+    btn.isUserInteractionEnabled = false // 터치 방지
+    btn.alpha = 0.3 // 사용자 설정값: 실제 버튼보다 투명하게
+    btn.layer.cornerRadius = 4 // 사용자 설정값: 약간의 곡률 유지
     return btn
   }
 
@@ -278,9 +289,29 @@ extension KeyboardViewController {
       let id = btn.keyValue
       let isSpecial = (id == "shift" || id == "backspace" || id == "symbol" || id == "lang" || id == "enter" || id == "emoji" || id == "dismiss" || id.contains("cursor"))
       
-      if id == "shift" { continue }
+      if id == "shift" {
+        let isActive = isShifted || isShiftLocked
+        // 활성화 시 더 밝거나 강조된 색상 적용 (다크 모드면 흰색 0.3, 라이트 모드면 검정 0.2 등)
+        let activeColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.3) : UIColor(white: 0.0, alpha: 0.25)
+        let normalColor = isSpecial ? specialGlassColor : keyGlassColor
+        
+        btn.backgroundColor = isActive ? activeColor : normalColor
+        btn.normalBackgroundColor = btn.backgroundColor // KeyButton에 저장
+        
+        // 심볼 모드일 때는 1/2, 2/2 표시
+        if isSymbol {
+          btn.setTitle(isShifted ? "2/2" : "1/2", for: .normal)
+          btn.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .medium)
+        } else {
+          let shiftTitle = isShiftLocked ? "⇪" : "⇧"
+          btn.setTitle(shiftTitle, for: .normal)
+          btn.titleLabel?.font = UIFont.systemFont(ofSize: KeyboardConstants.KEY_FONT_SIZE, weight: .medium)
+        }
+        continue
+      }
       
       btn.backgroundColor = isSpecial ? specialGlassColor : keyGlassColor
+      btn.normalBackgroundColor = btn.backgroundColor
       btn.setTitleColor(isSpecial ? specialTextColor : keyTextColor, for: .normal)
       btn.tintColor = isSpecial ? specialTextColor : keyTextColor
       btn.layer.borderColor = keyBorderColor
@@ -309,15 +340,61 @@ extension KeyboardViewController {
     return makeShiftRow(middleKeys: labels, keyValues: keys, rowOffset: 600)
   }
 
-  func makeLetterRowStack(_ chars: [Character], rowOffset: Int) -> UIView {
+  func makeLetterRowStack(_ chars: [String], rowOffset: Int) -> UIView {
+    let container = UIView()
     let stack = UIStackView()
     stack.axis = .horizontal
-    stack.distribution = .fillEqually
+    stack.distribution = .fill
     stack.spacing = 5
-    for (idx, ch) in chars.enumerated() {
-      stack.addArrangedSubview(makeGlassButton(title: letterLabel(for: ch), id: String(ch), isSpecial: false, tag: rowOffset + idx))
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    
+    // 9개 버튼일 경우 양옆에 더미 버튼 추가
+    if chars.count == 9 {
+      let leftDummy = makeDummyButton()
+      let rightDummy = makeDummyButton()
+      
+      stack.addArrangedSubview(leftDummy)
+      
+      var firstKey: UIView?
+      for (idx, ch) in chars.enumerated() {
+        let label = isSymbol ? ch : (ch.count == 1 ? letterLabel(for: Character(ch)) : ch)
+        let key = makeGlassButton(title: label, id: ch, isSpecial: false, tag: rowOffset + idx)
+        stack.addArrangedSubview(key)
+        
+        if let first = firstKey {
+          // 모든 글자 키의 너비를 첫 번째 키와 동일하게 설정
+          key.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true
+        } else {
+          firstKey = key
+        }
+      }
+      
+      stack.addArrangedSubview(rightDummy)
+      
+      // 더미 버튼의 너비를 일반 키의 0.3배로 설정 (사용자 설정값)
+      if let key = firstKey {
+        leftDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.3).isActive = true
+        rightDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.3).isActive = true
+      }
+    } else {
+      // 10개 버튼일 경우 (기존 fillEqually와 동일하게 동작)
+      stack.distribution = .fillEqually
+      for (idx, ch) in chars.enumerated() {
+        let label = isSymbol ? ch : (ch.count == 1 ? letterLabel(for: Character(ch)) : ch)
+        stack.addArrangedSubview(makeGlassButton(title: label, id: ch, isSpecial: false, tag: rowOffset + idx))
+      }
     }
-    return stack
+    
+    container.addSubview(stack)
+    
+    NSLayoutConstraint.activate([
+      stack.topAnchor.constraint(equalTo: container.topAnchor),
+      stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+      stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      stack.trailingAnchor.constraint(equalTo: container.trailingAnchor)
+    ])
+    
+    return container
   }
 
   func makeEqualRow(keys: [String], rowOffset: Int = 0) -> UIView {
@@ -333,9 +410,26 @@ extension KeyboardViewController {
 
   func makeShiftRow(middleKeys: [String], keyValues: [String], rowOffset: Int) -> UIView {
     let container = UIView()
-    let shiftTitle = isShiftLocked ? "⇪" : "⇧"
-    let shiftBtn = makeGlassButton(title: shiftTitle, id: "shift", isSpecial: true, tag: 699)
+    container.clipsToBounds = false // 가장자리 애니메이션 잘림 방지
+    
+    // 이 시점에 이미 isSymbol 상태가 반영되어 있으므로 여기서도 체크 필요
+    let shiftTitle: String
+    let fontSize: CGFloat
+    if isSymbol {
+      shiftTitle = isShifted ? "2/2" : "1/2"
+      fontSize = 16
+    } else {
+      shiftTitle = isShiftLocked ? "⇪" : "⇧"
+      fontSize = KeyboardConstants.KEY_FONT_SIZE
+    }
+    
+    let shiftBtn = makeGlassButton(title: shiftTitle, id: "shift", isSpecial: true, tag: 699, fontSize: fontSize)
     shiftBtn.addTarget(self, action: #selector(shiftTapped), for: .touchUpInside)
+    
+    // 시프트 롱 프레스 추가 (0.5초)
+    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleShiftLongPress(_:)))
+    longPress.minimumPressDuration = 0.5
+    shiftBtn.addGestureRecognizer(longPress)
     
     if isShifted {
        if isShiftLocked {
@@ -361,11 +455,11 @@ extension KeyboardViewController {
     [shiftBtn, letterStack, bsBtn].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; container.addSubview($0) }
     NSLayoutConstraint.activate([
       shiftBtn.leadingAnchor.constraint(equalTo: container.leadingAnchor), shiftBtn.topAnchor.constraint(equalTo: container.topAnchor),
-      shiftBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor), shiftBtn.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.13),
+      shiftBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor), shiftBtn.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.15),
       letterStack.leadingAnchor.constraint(equalTo: shiftBtn.trailingAnchor, constant: 5), letterStack.trailingAnchor.constraint(equalTo: bsBtn.leadingAnchor, constant: -5),
       letterStack.topAnchor.constraint(equalTo: container.topAnchor), letterStack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
       bsBtn.trailingAnchor.constraint(equalTo: container.trailingAnchor), bsBtn.topAnchor.constraint(equalTo: container.topAnchor),
-      bsBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor), bsBtn.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.13)
+      bsBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor), bsBtn.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.15)
     ])
     return container
   }
