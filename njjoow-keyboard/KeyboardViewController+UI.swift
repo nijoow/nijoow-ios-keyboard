@@ -296,14 +296,12 @@ extension KeyboardViewController {
       
       if id == "shift" {
         let isActive = isShifted || isShiftLocked
-        // 활성화 시 더 밝거나 강조된 색상 적용 (다크 모드면 흰색 0.3, 라이트 모드면 검정 0.2 등)
         let activeColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.3) : UIColor(white: 0.0, alpha: 0.25)
         let normalColor = isSpecial ? specialGlassColor : keyGlassColor
         
         btn.backgroundColor = isActive ? activeColor : normalColor
-        btn.normalBackgroundColor = btn.backgroundColor // KeyButton에 저장
+        btn.normalBackgroundColor = btn.backgroundColor
         
-        // 심볼 모드일 때는 1/2, 2/2 표시
         if isSymbol {
           btn.setTitle(isShifted ? "2/2" : "1/2", for: .normal)
           btn.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .medium)
@@ -312,11 +310,14 @@ extension KeyboardViewController {
           btn.setTitle(shiftTitle, for: .normal)
           btn.titleLabel?.font = UIFont.systemFont(ofSize: KeyboardConstants.KEY_FONT_SIZE, weight: .medium)
         }
-        continue
+        // continue를 제거하여 아래의 공통 속성(그림자, 테두리 등) 업데이트를 수행하도록 함
       }
       
-      btn.backgroundColor = isSpecial ? specialGlassColor : keyGlassColor
-      btn.normalBackgroundColor = btn.backgroundColor
+      if id != "shift" {
+        btn.backgroundColor = isSpecial ? specialGlassColor : keyGlassColor
+        btn.normalBackgroundColor = btn.backgroundColor
+      }
+      
       btn.setTitleColor(isSpecial ? specialTextColor : keyTextColor, for: .normal)
       btn.tintColor = isSpecial ? specialTextColor : keyTextColor
       btn.layer.borderColor = keyBorderColor
