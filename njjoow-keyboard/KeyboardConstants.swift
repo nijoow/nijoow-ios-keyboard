@@ -25,12 +25,12 @@ struct KeyboardConstants {
 
   // MARK: - 기호 맵핑
   static let SYM_ROW1_NORMAL: [String]  = ["(", ")", "[", "]", "{", "}", "<", ">", "\"", "'"]
-  static let SYM_ROW2_NORMAL: [String]  = ["@", "#", "+", "-", "*", "×", "÷", "%", "/", "^"]
-  static let SYM_ROW3_NORMAL: [String]  = ["~", ",", ":", ";", "_", "?", "!"]
+  static let SYM_ROW2_NORMAL: [String]  = ["@",  "+", "-", "*", "×", "÷",  "^",":", ";"]
+  static let SYM_ROW3_NORMAL: [String]  = ["~","_","#" ,"," , "?", "!","/"]
 
-  static let SYM_ROW1_SHIFTED: [String] = ["○", "●", "□", "■", "←", "↑", "↓", "→", "↔", "·"]
-  static let SYM_ROW2_SHIFTED: [String] = ["₩", "$", "=", "≠", "≤", "≥", "&", "|", "\\", "°"]
-  static let SYM_ROW3_SHIFTED: [String] = ["♡", "♥", "☆", "★", "♪", "…", "✓"]
+  static let SYM_ROW1_SHIFTED: [String] = ["₩", "$", "=", "≠", "≤", "≥", "&", "|", "\\", "°"]
+  static let SYM_ROW2_SHIFTED: [String] = ["○", "●", "□", "■", "←", "↑", "↓", "→", "↔" ]
+  static let SYM_ROW3_SHIFTED: [String] = ["♡", "♥", "☆", "★", "%", "·", "✓"]
 
   // MARK: - 이모지 데이터
   static let COMMON_EMOJIS: [String] = [

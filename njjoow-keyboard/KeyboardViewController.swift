@@ -14,6 +14,7 @@ class KeyboardViewController: UIInputViewController {
   var isHangul: Bool = true
   var isShifted: Bool = false
   var isShiftLocked: Bool = false
+  var lastShiftTapTime: Date? // 시프트 더블 탭 판정용
   var isSymbol: Bool = false
   var isEmoji: Bool = false
   
@@ -105,7 +106,7 @@ class KeyboardViewController: UIInputViewController {
     rebuildKeyboard()
   }
 
-  @available(iOS, introduced: 8.0, deprecated: 17.0)
+  @available(iOS, introduced: 8.0, deprecated: 17.0, message: "Use trait change registration APIs instead")
   override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
     super.traitCollectionDidChange(previousTraitCollection)
     if #unavailable(iOS 17.0) {

@@ -21,7 +21,8 @@ extension KeyboardViewController {
       textDocumentProxy.insertText(toInsert)
     }
 
-    if isShifted && !isShiftLocked {
+    // 글자 입력 후 일회용 시프트 해제 (심볼 모드가 아닐 때만)
+    if isShifted && !isShiftLocked && !isSymbol {
       isShifted = false
       rebuildKeyboard()
     }
@@ -67,21 +68,50 @@ extension KeyboardViewController {
   // MARK: - 기능 키 핸들링
   
   @objc func shiftTapped() {
+    triggerHaptic()
+    
     if isSymbol {
+      // 특수 기호 모드: 단순히 페이지 토글 (1/2 <-> 2/2)
+      // 이때는 일회용이 아닌 고정 모드로 동작하도록 함
       isShifted.toggle()
+      rebuildKeyboard()
+      return
+    }
+    
+    let now = Date()
+    
+    // 1. 고정 모드 해제: 이미 고정되어 있다면 어떤 탭이든 해제
+    if isShiftLocked {
       isShiftLocked = false
+      isShifted = false
+      lastShiftTapTime = nil
+      rebuildKeyboard()
+      return
+    }
+    
+    // 2. 더블 탭 판정 (0.3초 이내 다시 클릭)
+    if let lastTime = lastShiftTapTime, now.timeIntervalSince(lastTime) < 0.3 {
+      isShiftLocked = true
+      isShifted = true
+      lastShiftTapTime = nil
     } else {
-      if !isShifted {
-        isShifted = true
-        isShiftLocked = false
-      } else if !isShiftLocked {
+      // 3. 단일 탭: 일회용 시프트 토글
+      isShifted.toggle()
+      lastShiftTapTime = now
+    }
+    
+    rebuildKeyboard()
+  }
+  
+  @objc func handleShiftLongPress(_ gesture: UILongPressGestureRecognizer) {
+    if gesture.state == .began {
+      triggerHaptic()
+      if !isSymbol {
         isShiftLocked = true
-      } else {
-        isShifted = false
-        isShiftLocked = false
+        isShifted = true
+        rebuildKeyboard()
       }
     }
-    rebuildKeyboard()
   }
 
   @objc func langTapped() {
@@ -98,11 +128,10 @@ extension KeyboardViewController {
   }
 
   @objc func symbolTapped() {
-    flushHangul()
+    triggerHaptic()
     isSymbol.toggle()
+    // 기호 모드 진입 시 시프트 상태 초기화 (1/2 페이지부터 시작)
     isShifted = false
-    isShiftLocked = false
-    isEmoji = false
     rebuildKeyboard()
   }
 
@@ -131,7 +160,6 @@ extension KeyboardViewController {
   // MARK: - 백스페이스 및 가속 삭제
   
   @objc func backspaceTouchDown(_ sender: UIButton) {
-    triggerHaptic()
     handleBackspace()
     
     backspaceRepeatCount = 0
@@ -149,8 +177,11 @@ extension KeyboardViewController {
 
   private func handleBackspace() {
     if isHangul && !isSymbol {
-      let result = automata.backspace()
+      // 한글 조합 중일 때
       if composingChar != nil {
+        let result = automata.backspace()
+        triggerHaptic() // 조합 중인 획이 지워지므로 진동
+        
         if !result.insert.isEmpty {
           textDocumentProxy.setMarkedText(result.insert, selectedRange: NSRange(location: result.insert.count, length: 0))
           composingChar = result.insert.last
@@ -159,16 +190,19 @@ extension KeyboardViewController {
           composingChar = nil
         }
       } else {
-        for _ in 0..<result.deleteCount {
+        // 조합 중이 아닐 때 앞 글자 삭제 시도
+        if textDocumentProxy.hasText {
+          _ = automata.backspace()
+          triggerHaptic() // 글자가 지워지므로 진동
           textDocumentProxy.deleteBackward()
-        }
-        if !result.insert.isEmpty {
-          textDocumentProxy.setMarkedText(result.insert, selectedRange: NSRange(location: result.insert.count, length: 0))
-          composingChar = result.insert.last
         }
       }
     } else {
-      textDocumentProxy.deleteBackward()
+      // 영문 또는 기호 모드
+      if textDocumentProxy.hasText {
+        textDocumentProxy.deleteBackward()
+        triggerHaptic() // 글자가 지워지므로 진동
+      }
     }
   }
 
@@ -177,7 +211,7 @@ extension KeyboardViewController {
     backspaceTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
       guard let self = self else { return }
       self.handleBackspace()
-      self.triggerHaptic()
+      // handleBackspace 내부에서 햅틱을 처리하므로 여기서 중복 호출하지 않음
       self.backspaceRepeatCount += 1
       
       if self.backspaceRepeatCount == 10 {
