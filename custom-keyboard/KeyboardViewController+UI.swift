@@ -212,14 +212,14 @@ extension KeyboardViewController {
     btn.backgroundColor = isSpecial ? specialGlassColor : keyGlassColor
     btn.normalBackgroundColor = btn.backgroundColor
     
-    btn.layer.cornerRadius = KeyboardConstants.CORNER_RADIUS
-    btn.layer.borderWidth = 0.8 // 테두리를 조금 더 선명하게 (실버 에지 감성)
-    btn.layer.borderColor = keyBorderColor
-    btn.layer.shadowColor = UIColor.black.cgColor
-    btn.layer.shadowOffset = CGSize(width: 0, height: 2) // 그림자를 살짝 아래로 내려 더 깊은 공간감 부여
-    btn.layer.shadowOpacity = 0.6 // 그림자를 조금 더 진하게 하여 버튼을 부각
-    btn.layer.shadowRadius = 5
-    btn.isExclusiveTouch = false; // 멀티터치(동시입력) 허용을 위해 false로 변경
+    btn.layer.cornerRadius = KeyboardConstants.CORNER_RADIUS;
+    btn.layer.borderWidth = 0.5; // 더 얇고 날카로운 에지 (베젤 레이어와 시너지)
+    btn.layer.borderColor = keyBorderColor;
+    btn.layer.shadowColor = UIColor.black.cgColor;
+    btn.layer.shadowOffset = CGSize(width: 0, height: 3); // 그림자를 더 내려 깊이감 증가
+    btn.layer.shadowOpacity = 0.55; 
+    btn.layer.shadowRadius = 8; // 그림자를 더 넓게 퍼뜨려 고급스러운 소프트 섀도우 구현
+    btn.isExclusiveTouch = false;
     
     // 버튼 사이의 공백을 터치 영역으로 포함
     btn.touchAreaInsets = UIEdgeInsets(top: -2.5, left: -1.5, bottom: -2.5, right: -1.5);

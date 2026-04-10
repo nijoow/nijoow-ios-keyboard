@@ -58,8 +58,8 @@ class KeyboardViewController: UIInputViewController {
 
   // MARK: - 색상 테마 (옵시디언 블랙 럭셔리)
   var keyGlassColor: UIColor {
-    // 흑요석처럼 깊은 검정빛 반투명 (Smoky Black Glass)
-    return UIColor(red: 0.05, green: 0.05, blue: 0.05, alpha: 0.45)
+    // 흑요석처럼 더 깊고 매끄러운 다크 그레이 반투명
+    return UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.55);
   }
 
   var specialGlassColor: UIColor {
@@ -73,8 +73,8 @@ class KeyboardViewController: UIInputViewController {
   }
 
   var keyBorderColor: CGColor {
-    // 실버 에지(Edge) 느낌을 주는 정교한 화이트 오파시티 테두리
-    return UIColor(white: 1.0, alpha: 0.18).cgColor
+    // 실버 에지 느낌을 극대화한 정교한 보더
+    return UIColor(white: 1.0, alpha: 0.22).cgColor;
   }
 
   var keyTextColor: UIColor { return .white } // 명확한 화이트 텍스트
