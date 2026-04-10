@@ -29,40 +29,42 @@ extension KeyboardViewController {
   }
 
   func inputHangul(_ ch: Character) {
-    let jamo: Character
+    let jamo: Character;
     if isShifted, let shifted = KeyboardConstants.HANGUL_SHIFT_MAP[ch] {
-      jamo = shifted
+      jamo = shifted;
     } else if let hangul = KeyboardConstants.HANGUL_MAP[ch] {
-      jamo = hangul
+      jamo = hangul;
     } else {
-      flushHangul()
-      textDocumentProxy.insertText(String(ch))
-      return
+      flushHangul();
+      textDocumentProxy.insertText(String(ch));
+      return;
     }
 
-    let result = automata.input(jamo)
-    if !result.commit.isEmpty {
-      textDocumentProxy.insertText(result.commit)
+    // 기존 조합 중인 글자 삭제 (밑줄 없는 효과를 위해)
+    for _ in 0..<activeLength {
+      textDocumentProxy.deleteBackward();
     }
 
-    if let current = result.current {
-      textDocumentProxy.setMarkedText(String(current), selectedRange: NSRange(location: 1, length: 0))
-      composingChar = current
+    automata.input(jamo);
+    let combined = automata.compose();
+    
+    // 새 조합 삽입
+    if !combined.isEmpty {
+      textDocumentProxy.insertText(combined);
+      activeLength = combined.count;
+      composingChar = combined.last;
     } else {
-      textDocumentProxy.unmarkText()
-      composingChar = nil
+      activeLength = 0;
+      composingChar = nil;
     }
   }
 
   func flushHangul() {
-    guard isHangul else { return }
-    let committed = automata.flush()
-    if !committed.isEmpty {
-      textDocumentProxy.insertText(committed)
-    } else {
-      textDocumentProxy.unmarkText()
-    }
-    composingChar = nil
+    guard isHangul else { return; }
+    // 이미 insertText로 들어가 있으므로 상태만 초기화
+    automata.reset();
+    activeLength = 0;
+    composingChar = nil;
   }
 
   // MARK: - 기능 키 핸들링
@@ -128,17 +130,18 @@ extension KeyboardViewController {
   }
 
   @objc func symbolTapped() {
-    triggerHaptic()
-    isSymbol.toggle()
-    isCustom = false // 이모지 모드 해제
+    flushHangul();
+    triggerHaptic();
+    isSymbol.toggle();
+    isCustom = false; // 이모지 모드 해제
     // 기호 모드 진입 시 시프트 상태 초기화 (1/2 페이지부터 시작)
-    isShifted = false
-    rebuildKeyboard()
+    isShifted = false;
+    rebuildKeyboard();
   }
 
   @objc func enterTapped() {
-    flushHangul()
-    textDocumentProxy.insertText("\n")
+    flushHangul();
+    textDocumentProxy.insertText("\n");
   }
 
   // MARK: - 커서 이동 및 가속
@@ -146,9 +149,10 @@ extension KeyboardViewController {
   @objc func cursorTouchDown(_ sender: UIButton) {
     guard let id = sender.accessibilityIdentifier else { return }
     // 한 번 클릭 동작 수행
-    flushHangul()
-    triggerHaptic()
-    handleCursorMove(id: id)
+    flushHangul();
+    triggerHaptic();
+    activeLength = 0;
+    handleCursorMove(id: id);
     
     // 왼쪽/오른쪽 버튼인 경우에만 가속 타이머 작동
     if id == "cursor_left" || id == "cursor_right" {
@@ -221,10 +225,11 @@ extension KeyboardViewController {
   }
 
   @objc func customTapped() {
-    flushHangul()
-    isCustom.toggle()
-    isSymbol = false
-    rebuildKeyboard()
+    flushHangul();
+    triggerHaptic();
+    isCustom.toggle();
+    isSymbol = false;
+    rebuildKeyboard();
   }
 
   @objc func dismissTapped() {
@@ -258,23 +263,31 @@ extension KeyboardViewController {
   private func handleBackspace() {
     if isHangul && !isSymbol {
       // 한글 조합 중일 때
-      if composingChar != nil {
-        let result = automata.backspace()
-        triggerHaptic() // 조합 중인 획이 지워지므로 진동
+      // 한글 조합 중일 때 (스택에 자모가 남아있음)
+      if !automata.jamoStack.isEmpty {
+        // 기존 조합 글자 삭제
+        for _ in 0..<activeLength {
+          textDocumentProxy.deleteBackward();
+        }
         
-        if !result.insert.isEmpty {
-          textDocumentProxy.setMarkedText(result.insert, selectedRange: NSRange(location: result.insert.count, length: 0))
-          composingChar = result.insert.last
+        automata.backspace();
+        triggerHaptic();
+        
+        let combined = automata.compose();
+        if !combined.isEmpty {
+          textDocumentProxy.insertText(combined);
+          activeLength = combined.count;
+          composingChar = combined.last;
         } else {
-          textDocumentProxy.deleteBackward()
-          composingChar = nil
+          activeLength = 0;
+          composingChar = nil;
         }
       } else {
-        // 조합 중이 아닐 때 앞 글자 삭제 시도
+        // 조합 중이 아닐 때 앞 글자(음절) 한 자 삭제
         if textDocumentProxy.hasText {
-          _ = automata.backspace()
-          triggerHaptic() // 글자가 지워지므로 진동
-          textDocumentProxy.deleteBackward()
+          triggerHaptic();
+          textDocumentProxy.deleteBackward();
+          activeLength = 0; // 혹시 모를 육안 동기화
         }
       }
     } else {

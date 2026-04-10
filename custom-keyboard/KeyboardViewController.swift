@@ -19,10 +19,11 @@ class KeyboardViewController: UIInputViewController {
   var isSymbol: Bool = false
   var isCustom: Bool = false
   
-  var automata = HangulAutomata()
-  var composingChar: Character? = nil
-  var allKeyButtons: [KeyButton] = []
-  var shiftButton: KeyButton?
+  var automata = HangulAutomata();
+  var composingChar: Character? = nil;
+  var activeLength: Int = 0; // 밑줄 없는 조합을 위한 현재 조합 길이 추적
+  var allKeyButtons: [KeyButton] = [];
+  var shiftButton: KeyButton?;
 
   // MARK: - 팝업 상태 (Long Press)
   var popupView: UIView?
@@ -93,9 +94,9 @@ class KeyboardViewController: UIInputViewController {
     
     // 외부 삭제 감지 (카카오톡 전송 등)
     if before.isEmpty && after.isEmpty {
-      if composingChar != nil || automata.currentChar != nil {
-        resetKeyboardState()
-        rebuildKeyboard()
+      if composingChar != nil || !automata.jamoStack.isEmpty {
+        resetKeyboardState();
+        rebuildKeyboard();
       }
     }
   }

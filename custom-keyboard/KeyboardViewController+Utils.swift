@@ -138,15 +138,22 @@ extension KeyboardViewController {
 
   func insertVariant(_ selected: String) {
     if isHangul {
-      _ = automata.backspace()
-      let result = automata.input(Character(selected))
-      if !result.commit.isEmpty { textDocumentProxy.insertText(result.commit) }
-      if let current = result.current {
-        textDocumentProxy.setMarkedText(String(current), selectedRange: NSRange(location: 1, length: 0))
-        composingChar = current
+      // 기존 조합 중인 글자 삭제 (밑줄 없는 효과를 위해)
+      for _ in 0..<activeLength {
+        textDocumentProxy.deleteBackward();
+      }
+      
+      automata.backspace();
+      automata.input(Character(selected));
+      let combined = automata.compose();
+      
+      if !combined.isEmpty {
+        textDocumentProxy.insertText(combined);
+        activeLength = combined.count;
+        composingChar = combined.last;
       } else {
-        textDocumentProxy.unmarkText()
-        composingChar = nil
+        activeLength = 0;
+        composingChar = nil;
       }
     } else {
       textDocumentProxy.insertText(selected)
