@@ -48,7 +48,7 @@ extension KeyboardViewController {
     view.addSubview(customView)
     
     // 한영 키보드의 (숫자행 1 + 문자행 3 + 행간 간격 3 + 상하 여백 2) = 199pt
-    let totalHeight: CGFloat = 185
+    let totalHeight: CGFloat = 179
     
     NSLayoutConstraint.activate([
       customView.topAnchor.constraint(equalTo: utilRow.bottomAnchor, constant: 7),
@@ -65,7 +65,7 @@ extension KeyboardViewController {
     let contentStack = UIStackView()
     contentStack.axis = .vertical
     contentStack.distribution = .fill
-    contentStack.spacing = 7
+    contentStack.spacing = 5;
     contentStack.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(contentStack)
 
@@ -111,7 +111,7 @@ extension KeyboardViewController {
     let stack = UIStackView()
     stack.axis = .horizontal
     stack.distribution = .fillEqually
-    stack.spacing = 5
+    stack.spacing = 5;
 
     let cursors: [(CursorIconType, String)] = [
       (.lineStart, "cursor_line_start"), (.left, "cursor_left"),
@@ -219,9 +219,12 @@ extension KeyboardViewController {
     btn.layer.shadowOffset = CGSize(width: 0, height: 2) // 그림자를 살짝 아래로 내려 더 깊은 공간감 부여
     btn.layer.shadowOpacity = 0.6 // 그림자를 조금 더 진하게 하여 버튼을 부각
     btn.layer.shadowRadius = 5
-    btn.isExclusiveTouch = true // 버튼 간 터치 간섭 방지
+    btn.isExclusiveTouch = false; // 멀티터치(동시입력) 허용을 위해 false로 변경
     
-    btn.addTarget(self, action: #selector(hapticTouchDown(_:)), for: .touchDown)
+    // 버튼 사이의 공백을 터치 영역으로 포함
+    btn.touchAreaInsets = UIEdgeInsets(top: -2.5, left: -1.5, bottom: -2.5, right: -1.5);
+    
+    btn.addTarget(self, action: #selector(hapticTouchDown(_:)), for: .touchDown);
 
     if !isSpecial {
       btn.addTarget(self, action: #selector(letterTapped(_:)), for: .touchUpInside)
@@ -261,43 +264,66 @@ extension KeyboardViewController {
       let isSpecial = (id == "shift" || id == "backspace" || id == "symbol" || id == "lang" || id == "enter" || id == "custom" || id == "dismiss" || id.contains("cursor"))
       
       if id == "shift" {
-        let isActive = isShifted || isShiftLocked
-        let activeColor = activeGlassColor // 이미 정의된 럭셔리 액티브 색상 사용
-        let normalColor = isSpecial ? specialGlassColor : keyGlassColor
+        let isActive = isShifted || isShiftLocked;
+        let targetColor = isActive ? activeGlassColor : (isSpecial ? specialGlassColor : keyGlassColor);
         
-        btn.backgroundColor = isActive ? activeColor : normalColor
-        btn.normalBackgroundColor = btn.backgroundColor
+        if btn.backgroundColor != targetColor {
+          btn.backgroundColor = targetColor;
+          btn.normalBackgroundColor = btn.backgroundColor;
+        }
         
-        if isSymbol {
-          btn.setTitle(isShifted ? "2/2" : "1/2", for: .normal)
-          btn.titleLabel?.font = UIFont.systemFont(ofSize: 16, weight: .medium)
-        } else {
-          let shiftTitle = isShiftLocked ? "⇪" : "⇧"
-          btn.setTitle(shiftTitle, for: .normal)
-          btn.titleLabel?.font = UIFont.systemFont(ofSize: KeyboardConstants.KEY_FONT_SIZE, weight: .medium)
+        let targetTitle = isSymbol ? (isShifted ? "2/2" : "1/2") : (isShiftLocked ? "⇪" : "⇧");
+        if btn.title(for: .normal) != targetTitle {
+          btn.setTitle(targetTitle, for: .normal);
+          btn.titleLabel?.font = UIFont.systemFont(ofSize: isSymbol ? 16 : KeyboardConstants.KEY_FONT_SIZE, weight: .medium);
         }
       }
       
       if id != "shift" {
-        btn.backgroundColor = isSpecial ? specialGlassColor : keyGlassColor
-        btn.normalBackgroundColor = btn.backgroundColor
+        let targetColor = isSpecial ? specialGlassColor : keyGlassColor;
+        if btn.backgroundColor != targetColor {
+          btn.backgroundColor = targetColor;
+          btn.normalBackgroundColor = btn.backgroundColor;
+        }
       }
       
-      btn.setTitleColor(isSpecial ? specialTextColor : keyTextColor, for: .normal)
-      btn.tintColor = isSpecial ? specialTextColor : keyTextColor
-      btn.layer.borderColor = keyBorderColor
-      btn.layer.shadowOpacity = 0.6 // 옵시디언 다크 테마에 맞게 일관된 그림자 유지
+      let targetTextColor = isSpecial ? specialTextColor : keyTextColor;
+      if btn.titleColor(for: .normal) != targetTextColor {
+        btn.setTitleColor(targetTextColor, for: .normal);
+        btn.tintColor = targetTextColor;
+      }
+      
+      btn.layer.borderColor = keyBorderColor;
+      btn.layer.shadowOpacity = 0.6; // 옵시디언 다크 테마에 맞게 일관된 그림자 유지
     }
   }
 
   // MARK: - 개별 행 생성
   
   func makeNumberRow() -> UIView {
-    makeEqualRow(keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], rowOffset: 300)
+    let row = makeEqualRow(keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], rowOffset: 300);
+    if let stack = row as? UIStackView {
+      let buttons = stack.arrangedSubviews.compactMap { $0 as? KeyButton };
+      for (idx, btn) in buttons.enumerated() {
+        // 숫자 행은 상단 여백을 위해 top을 더 크게 확장
+        btn.touchAreaInsets.top = -10.0;
+        if idx == 0 { btn.touchAreaInsets.left = -8.0; }
+        if idx == buttons.count - 1 { btn.touchAreaInsets.right = -8.0; }
+      }
+    }
+    return row;
   }
 
   func makeLetterRow1() -> UIView {
-    makeLetterRowStack(["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"], rowOffset: 400)
+    let row = makeLetterRowStack(["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"], rowOffset: 400);
+    if let stack = row.subviews.first as? UIStackView {
+      let buttons = stack.arrangedSubviews.compactMap { $0 as? KeyButton };
+      for (idx, btn) in buttons.enumerated() {
+        if idx == 0 { btn.touchAreaInsets.left = -8.0; }
+        if idx == buttons.count - 1 { btn.touchAreaInsets.right = -8.0; }
+      }
+    }
+    return row;
   }
 
   func makeLetterRow2() -> UIView {
@@ -316,7 +342,7 @@ extension KeyboardViewController {
     let stack = UIStackView()
     stack.axis = .horizontal
     stack.distribution = .fill
-    stack.spacing = 5
+    stack.spacing = 3;
     stack.translatesAutoresizingMaskIntoConstraints = false
     
     // 9개 버튼일 경우 양옆에 더미 버튼 추가
@@ -328,24 +354,32 @@ extension KeyboardViewController {
       
       var firstKey: UIView?
       for (idx, ch) in chars.enumerated() {
-        let label = isSymbol ? ch : (ch.count == 1 ? letterLabel(for: Character(ch)) : ch)
-        let key = makeGlassButton(title: label, id: ch, isSpecial: false, tag: rowOffset + idx)
-        stack.addArrangedSubview(key)
+        let label = isSymbol ? ch : (ch.count == 1 ? letterLabel(for: Character(ch)) : ch);
+        let key = makeGlassButton(title: label, id: ch, isSpecial: false, tag: rowOffset + idx);
+        stack.addArrangedSubview(key);
         
         if let first = firstKey {
-          // 모든 글자 키의 너비를 첫 번째 키와 동일하게 설정
-          key.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true
+          key.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true;
         } else {
-          firstKey = key
+          firstKey = key;
         }
       }
       
-      stack.addArrangedSubview(rightDummy)
+      stack.addArrangedSubview(rightDummy);
       
-      // 더미 버튼의 너비를 일반 키의 0.3배로 설정 (사용자 설정값)
+      let keyButtons = stack.arrangedSubviews.compactMap { $0 as? KeyButton };
+      if let firstKeyBtn = keyButtons.first(where: { $0.keyValue != "dummy" }) {
+        // 첫 번째 키(예: 'a')의 왼쪽 터미 영역까지 확장
+        firstKeyBtn.touchAreaInsets.left = -40;
+      }
+      if let lastKeyBtn = keyButtons.last(where: { $0.keyValue != "dummy" }) {
+        // 마지막 키(예: 'l')의 오른쪽 터미 영역까지 확장
+        lastKeyBtn.touchAreaInsets.right = -40;
+      }
+
       if let key = firstKey {
-        leftDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.3).isActive = true
-        rightDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.3).isActive = true
+        leftDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.3).isActive = true;
+        rightDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.3).isActive = true;
       }
     } else {
       // 10개 버튼일 경우 (기존 fillEqually와 동일하게 동작)
@@ -372,7 +406,7 @@ extension KeyboardViewController {
     let stack = UIStackView()
     stack.axis = .horizontal
     stack.distribution = .fillEqually
-    stack.spacing = 5
+    stack.spacing = 3;
     for (idx, key) in keys.enumerated() {
       stack.addArrangedSubview(makeGlassButton(title: key, id: key, isSpecial: false, tag: rowOffset + idx))
     }
@@ -417,17 +451,27 @@ extension KeyboardViewController {
     bsBtn.addTarget(self, action: #selector(backspaceTouchDown(_:)), for: .touchDown)
     bsBtn.addTarget(self, action: #selector(backspaceTouchUp(_:)), for: [.touchUpInside, .touchUpOutside, .touchCancel])
 
-    let letterStack = UIStackView()
-    letterStack.axis = .horizontal; letterStack.distribution = .fillEqually; letterStack.spacing = 5
+    let letterStack = UIStackView();
+    letterStack.axis = .horizontal; letterStack.distribution = .fillEqually; letterStack.spacing = 3;
     for (idx, (label, value)) in zip(middleKeys, keyValues).enumerated() {
       letterStack.addArrangedSubview(makeGlassButton(title: label, id: value, isSpecial: false, tag: rowOffset + idx))
     }
 
     [shiftBtn, letterStack, bsBtn].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; container.addSubview($0) }
+    
+    // 시프트 행의 하단 여백 및 좌우 여백 확장
+    shiftBtn.touchAreaInsets.bottom = -10.0;
+    shiftBtn.touchAreaInsets.left = -8.0;
+    bsBtn.touchAreaInsets.bottom = -10.0;
+    bsBtn.touchAreaInsets.right = -8.0;
+    for btn in letterStack.arrangedSubviews.compactMap({ $0 as? KeyButton }) {
+      btn.touchAreaInsets.bottom = -10.0;
+    }
+    
     NSLayoutConstraint.activate([
       shiftBtn.leadingAnchor.constraint(equalTo: container.leadingAnchor), shiftBtn.topAnchor.constraint(equalTo: container.topAnchor),
       shiftBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor), shiftBtn.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.15),
-      letterStack.leadingAnchor.constraint(equalTo: shiftBtn.trailingAnchor, constant: 5), letterStack.trailingAnchor.constraint(equalTo: bsBtn.leadingAnchor, constant: -5),
+      letterStack.leadingAnchor.constraint(equalTo: shiftBtn.trailingAnchor, constant: 4), letterStack.trailingAnchor.constraint(equalTo: bsBtn.leadingAnchor, constant: -4),
       letterStack.topAnchor.constraint(equalTo: container.topAnchor), letterStack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
       bsBtn.trailingAnchor.constraint(equalTo: container.trailingAnchor), bsBtn.topAnchor.constraint(equalTo: container.topAnchor),
       bsBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor), bsBtn.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.15)
@@ -447,37 +491,47 @@ extension KeyboardViewController {
       case 400...409:
         let idx = btn.tag - 400
         if isSymbol {
-          let keys = isShifted ? KeyboardConstants.SYM_ROW1_SHIFTED : KeyboardConstants.SYM_ROW1_NORMAL
-          btn.setTitle(keys[idx], for: .normal); btn.keyValue = keys[idx]
+          let keys = isShifted ? KeyboardConstants.SYM_ROW1_SHIFTED : KeyboardConstants.SYM_ROW1_NORMAL;
+          let target = keys[idx];
+          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = target; }
         } else {
-          let ch = row1Normal[idx]
-          btn.setTitle(letterLabel(for: ch), for: .normal); btn.keyValue = String(ch)
+          let ch = row1Normal[idx];
+          let target = letterLabel(for: ch);
+          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = String(ch); }
         }
       case 500...509:
-        let idx = btn.tag - 500
+        let idx = btn.tag - 500;
         if isSymbol {
-          let keys = isShifted ? KeyboardConstants.SYM_ROW2_SHIFTED : KeyboardConstants.SYM_ROW2_NORMAL
-          btn.setTitle(keys[idx], for: .normal); btn.keyValue = keys[idx]
+          let keys = isShifted ? KeyboardConstants.SYM_ROW2_SHIFTED : KeyboardConstants.SYM_ROW2_NORMAL;
+          let target = keys[idx];
+          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = target; }
         } else {
-          let ch = row2Normal[idx]
-          btn.setTitle(letterLabel(for: ch), for: .normal); btn.keyValue = String(ch)
+          let ch = row2Normal[idx];
+          let target = letterLabel(for: ch);
+          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = String(ch); }
         }
       case 600...606:
-        let idx = btn.tag - 600
+        let idx = btn.tag - 600;
         if isSymbol {
-          let keys = isShifted ? KeyboardConstants.SYM_ROW3_SHIFTED : KeyboardConstants.SYM_ROW3_NORMAL
-          btn.setTitle(keys[idx], for: .normal); btn.keyValue = keys[idx]
+          let keys = isShifted ? KeyboardConstants.SYM_ROW3_SHIFTED : KeyboardConstants.SYM_ROW3_NORMAL;
+          let target = keys[idx];
+          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = target; }
         } else {
-          let ch = row3Normal[idx]
-          btn.setTitle(letterLabel(for: ch), for: .normal); btn.keyValue = String(ch)
+          let ch = row3Normal[idx];
+          let target = letterLabel(for: ch);
+          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = String(ch); }
         }
       case 699:
-        btn.setTitle(isShiftLocked ? "⇪" : "⇧", for: .normal)
-        if isShifted {
-          btn.backgroundColor = isShiftLocked ? (isDarkMode ? UIColor(white: 1.0, alpha: 0.8) : UIColor(white: 0.0, alpha: 0.7)) : (isDarkMode ? UIColor(white: 1.0, alpha: 0.4) : UIColor(white: 0.0, alpha: 0.3))
-          btn.setTitleColor(isShiftLocked ? (isDarkMode ? .black : .white) : .white, for: .normal)
+        btn.setTitle(isShiftLocked ? "⇪" : "⇧", for: .normal);
+        let isActive = isShifted || isShiftLocked;
+        if isActive {
+          btn.backgroundColor = isShiftLocked ? (isDarkMode ? UIColor(white: 1.0, alpha: 0.8) : UIColor(white: 0.0, alpha: 0.7)) : (isDarkMode ? UIColor(white: 1.0, alpha: 0.4) : UIColor(white: 0.0, alpha: 0.3));
+          btn.setTitleColor(.black, for: .normal);
+          btn.tintColor = .black;
         } else {
-          btn.backgroundColor = specialGlassColor; btn.setTitleColor(specialTextColor, for: .normal)
+          btn.backgroundColor = specialGlassColor;
+          btn.setTitleColor(specialTextColor, for: .normal);
+          btn.tintColor = specialTextColor;
         }
       default: break
       }

@@ -63,12 +63,12 @@ class KeyboardViewController: UIInputViewController {
 
   var specialGlassColor: UIColor {
     // 특수 키는 더 투명하고 깊은 느낌으로 처리
-    return UIColor(red: 0.02, green: 0.02, blue: 0.02, alpha: 0.35)
+    return UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.30)
   }
 
   var activeGlassColor: UIColor {
     // 활성화 상태(시프트 등)는 내부에서 빛이 은은하게 감도는 화이트 틴트
-    return UIColor(white: 1.0, alpha: 0.15)
+    return UIColor(white: 0.6, alpha: 0.30)
   }
 
   var keyBorderColor: CGColor {

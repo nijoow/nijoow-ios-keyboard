@@ -6,7 +6,8 @@
 import UIKit
 
 class KeyButton: UIButton {
-  var keyValue: String = ""
+  var keyValue: String = "";
+  var touchAreaInsets: UIEdgeInsets = .zero;
   
   /// 버튼의 기본 배경색 (하이라이트 해제 시 복구용)
   var normalBackgroundColor: UIColor? {
@@ -20,9 +21,8 @@ class KeyButton: UIButton {
   // MARK: - 히트 테스트 영역 최적화
   
   override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-    // 시스템 제스처(엣지 스와이프 등) 간섭을 최소화하기 위해 터치 영역을 꽉 채워 인식하도록 함
-    // 버튼의 시각적 범위(bounds) 내에 있다면 무조건 true 반환
-    return bounds.contains(point)
+    let area = bounds.inset(by: touchAreaInsets);
+    return area.contains(point);
   }
   
   // MARK: - 터치 피드백 (하이라이트 효과)
