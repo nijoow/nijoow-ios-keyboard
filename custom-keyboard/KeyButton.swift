@@ -46,11 +46,11 @@ class KeyButton: UIButton {
     layer.insertSublayer(glassBodyLayer, at: 0);
     
     // 2. 상단 베젤 하이라이트 (유리 엣지 반사)
-    bezelLayer.backgroundColor = UIColor(white: 1.0, alpha: 0.15).cgColor;
     layer.addSublayer(bezelLayer);
     
     // 기본 레이어 설정
     layer.masksToBounds = true;
+    updateLayerAppearance();
   }
   
   override func layoutSubviews() {
@@ -67,12 +67,37 @@ class KeyButton: UIButton {
     bezelLayer.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 0.8);
     bezelLayer.cornerRadius = radius;
     
+    // [성능 최적화] shadowPath를 명시적으로 지정하여 그림자 연산 오버헤드(메모리 폭발) 방지
+    layer.shadowPath = UIBezierPath(roundedRect: bounds, cornerRadius: radius).cgPath;
+    
     CATransaction.commit();
+  }
+
+  func updateLayerAppearance() {
+    let isDark = traitCollection.userInterfaceStyle == .dark;
+    
+    if isDark {
+      glassBodyLayer.colors = [
+        UIColor(white: 1.0, alpha: 0.08).cgColor,
+        UIColor(white: 1.0, alpha: 0.0).cgColor,
+        UIColor(white: 0.0, alpha: 0.05).cgColor
+      ];
+      bezelLayer.backgroundColor = UIColor(white: 1.0, alpha: 0.15).cgColor;
+    } else {
+      glassBodyLayer.colors = [
+        UIColor(white: 1.0, alpha: 0.35).cgColor,
+        UIColor(white: 1.0, alpha: 0.1).cgColor,
+        UIColor(white: 0.0, alpha: 0.02).cgColor
+      ];
+      bezelLayer.backgroundColor = UIColor(white: 1.0, alpha: 0.45).cgColor;
+    }
+    
+    backgroundColor = normalBackgroundColor;
+    layer.borderColor = layer.borderColor; // 리프레시 유도
   }
   
   private func updateLayerColors() {
-    backgroundColor = normalBackgroundColor;
-    // 배경색에 따라 하이라이트 농도를 미세하게 조절할 수 있습니다.
+    updateLayerAppearance();
   }
   
   // MARK: - 히트 테스트 영역 최적화

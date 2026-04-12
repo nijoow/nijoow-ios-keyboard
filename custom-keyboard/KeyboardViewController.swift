@@ -58,27 +58,53 @@ class KeyboardViewController: UIInputViewController {
 
   // MARK: - 색상 테마 (옵시디언 블랙 럭셔리)
   var keyGlassColor: UIColor {
-    // 흑요석처럼 더 깊고 매끄러운 다크 그레이 반투명
-    return UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.55);
+    if isDarkMode {
+      // 흑요석처럼 더 깊고 매끄러운 다크 그레이 반투명
+      return UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.55);
+    } else {
+      // 밝고 깨끗한 화이트 글래스 (Frosted Glass)
+      return UIColor(white: 1.0, alpha: 0.65);
+    }
   }
 
   var specialGlassColor: UIColor {
-    // 특수 키는 더 투명하고 깊은 느낌으로 처리
-    return UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.30)
+    if isDarkMode {
+      return UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.30);
+    } else {
+      return UIColor(white: 0.9, alpha: 0.45);
+    }
   }
 
   var activeGlassColor: UIColor {
-    // 활성화 상태(시프트 등)는 내부에서 빛이 은은하게 감도는 화이트 틴트
-    return UIColor(white: 0.6, alpha: 0.30)
+    if isDarkMode {
+      // 다크 모드: 버튼이 빛나는 것처럼 화이트 틴트 강조
+      return UIColor(white: 1.0, alpha: 0.9);
+    } else {
+      // 라이트 모드: 버튼이 눌려진 흑요석처럼 짙게 변함
+      return UIColor(white: 0.0, alpha: 0.75);
+    }
+  }
+
+  var activeTextColor: UIColor {
+    // 배경색에 맞춰 텍스트 색상 반전
+    return isDarkMode ? .black : .white;
   }
 
   var keyBorderColor: CGColor {
-    // 실버 에지 느낌을 극대화한 정교한 보더
-    return UIColor(white: 1.0, alpha: 0.22).cgColor;
+    if isDarkMode {
+      return UIColor(white: 1.0, alpha: 0.22).cgColor;
+    } else {
+      return UIColor(white: 0.0, alpha: 0.12).cgColor;
+    }
   }
 
-  var keyTextColor: UIColor { return .white } // 명확한 화이트 텍스트
-  var specialTextColor: UIColor { return UIColor(white: 0.75, alpha: 1.0) } // 고급스런 실버/그레이 톤
+  var keyTextColor: UIColor {
+    return isDarkMode ? .white : UIColor(white: 0.1, alpha: 1.0);
+  }
+  
+  var specialTextColor: UIColor {
+    return isDarkMode ? UIColor(white: 0.75, alpha: 1.0) : UIColor(white: 0.35, alpha: 1.0);
+  }
 
   // MARK: - Lifecycle
   override func viewWillAppear(_ animated: Bool) {

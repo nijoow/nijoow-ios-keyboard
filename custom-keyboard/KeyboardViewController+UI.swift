@@ -213,12 +213,12 @@ extension KeyboardViewController {
     btn.normalBackgroundColor = btn.backgroundColor
     
     btn.layer.cornerRadius = KeyboardConstants.CORNER_RADIUS;
-    btn.layer.borderWidth = 0.5; // 더 얇고 날카로운 에지 (베젤 레이어와 시너지)
+    btn.layer.borderWidth = 0.5;
     btn.layer.borderColor = keyBorderColor;
     btn.layer.shadowColor = UIColor.black.cgColor;
-    btn.layer.shadowOffset = CGSize(width: 0, height: 3); // 그림자를 더 내려 깊이감 증가
-    btn.layer.shadowOpacity = 0.55; 
-    btn.layer.shadowRadius = 8; // 그림자를 더 넓게 퍼뜨려 고급스러운 소프트 섀도우 구현
+    btn.layer.shadowOffset = CGSize(width: 0, height: 3);
+    btn.layer.shadowOpacity = isDarkMode ? 0.55 : 0.15; // 라이트 모드에선 그림자를 훨씬 연하게
+    btn.layer.shadowRadius = isDarkMode ? 8 : 4; // 라이트 모드에선 더 좁은 반경
     btn.isExclusiveTouch = false;
     
     // 버튼 사이의 공백을 터치 영역으로 포함
@@ -265,11 +265,17 @@ extension KeyboardViewController {
       
       if id == "shift" {
         let isActive = isShifted || isShiftLocked;
-        let targetColor = isActive ? activeGlassColor : (isSpecial ? specialGlassColor : keyGlassColor);
+        let targetColor = isActive ? activeGlassColor : specialGlassColor;
+        let targetTextC = isActive ? activeTextColor : specialTextColor;
         
         if btn.backgroundColor != targetColor {
           btn.backgroundColor = targetColor;
           btn.normalBackgroundColor = btn.backgroundColor;
+        }
+        
+        if btn.titleColor(for: .normal) != targetTextC {
+          btn.setTitleColor(targetTextC, for: .normal);
+          btn.tintColor = targetTextC;
         }
         
         let targetTitle = isSymbol ? (isShifted ? "2/2" : "1/2") : (isShiftLocked ? "⇪" : "⇧");
@@ -285,16 +291,20 @@ extension KeyboardViewController {
           btn.backgroundColor = targetColor;
           btn.normalBackgroundColor = btn.backgroundColor;
         }
-      }
-      
-      let targetTextColor = isSpecial ? specialTextColor : keyTextColor;
-      if btn.titleColor(for: .normal) != targetTextColor {
-        btn.setTitleColor(targetTextColor, for: .normal);
-        btn.tintColor = targetTextColor;
+        
+        let targetTextColor = isSpecial ? specialTextColor : keyTextColor;
+        if btn.titleColor(for: .normal) != targetTextColor {
+          btn.setTitleColor(targetTextColor, for: .normal);
+          btn.tintColor = targetTextColor;
+        }
       }
       
       btn.layer.borderColor = keyBorderColor;
-      btn.layer.shadowOpacity = 0.6; // 옵시디언 다크 테마에 맞게 일관된 그림자 유지
+      btn.layer.shadowOpacity = Float(isDarkMode ? 0.55 : 0.15);
+      btn.layer.shadowRadius = isDarkMode ? 8 : 4;
+      
+      // 3D 글래스 레이어 업데이트 (중앙 집중식 관리)
+      btn.updateLayerAppearance();
     }
   }
 
@@ -436,16 +446,7 @@ extension KeyboardViewController {
     longPress.minimumPressDuration = 0.5
     shiftBtn.addGestureRecognizer(longPress)
     
-    if isShifted {
-       if isShiftLocked {
-         shiftBtn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.8) : UIColor(white: 0.0, alpha: 0.7)
-         shiftBtn.setTitleColor(isDarkMode ? .black : .white, for: .normal)
-       } else {
-         shiftBtn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.4) : UIColor(white: 0.0, alpha: 0.3)
-         shiftBtn.setTitleColor(.white, for: .normal)
-       }
-    }
-    shiftButton = shiftBtn
+    shiftButton = shiftBtn;
 
     let bsBtn = makeGlassButton(title: "⌫", id: "backspace", isSpecial: true, tag: 698)
     bsBtn.addTarget(self, action: #selector(backspaceTouchDown(_:)), for: .touchDown)
@@ -522,16 +523,9 @@ extension KeyboardViewController {
           if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = String(ch); }
         }
       case 699:
-        btn.setTitle(isShiftLocked ? "⇪" : "⇧", for: .normal);
-        let isActive = isShifted || isShiftLocked;
-        if isActive {
-          btn.backgroundColor = isShiftLocked ? (isDarkMode ? UIColor(white: 1.0, alpha: 0.8) : UIColor(white: 0.0, alpha: 0.7)) : (isDarkMode ? UIColor(white: 1.0, alpha: 0.4) : UIColor(white: 0.0, alpha: 0.3));
-          btn.setTitleColor(.black, for: .normal);
-          btn.tintColor = .black;
-        } else {
-          btn.backgroundColor = specialGlassColor;
-          btn.setTitleColor(specialTextColor, for: .normal);
-          btn.tintColor = specialTextColor;
+        let targetTitle = isShiftLocked ? "⇪" : "⇧";
+        if btn.title(for: .normal) != targetTitle {
+          btn.setTitle(targetTitle, for: .normal);
         }
       default: break
       }

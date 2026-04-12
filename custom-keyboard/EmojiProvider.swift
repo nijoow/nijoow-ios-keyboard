@@ -29,17 +29,24 @@ class EmojiProvider {
     private let recentKey = "nijoow.custom.keyboard.recentEmojis"
     private let maxRecentCount = 40
     
-    // UI에 제공할 최종 카테고리 목록 (최근 사용 포함)
+    // UI에 제공할 최종 카테고리 목록 (최근 사용 포함) - 메모리 최적화를 위해 캐싱 처리
+    private var _cachedCategories: [EmojiCategory] = [];
     var categories: [EmojiCategory] {
-        if recentEmojis.isEmpty {
-            return baseCategories
-        }
+      if _cachedCategories.isEmpty { updateCategoriesCache(); }
+      return _cachedCategories;
+    }
+    
+    private func updateCategoriesCache() {
+      if recentEmojis.isEmpty {
+        _cachedCategories = baseCategories;
+      } else {
         let recentCategory = EmojiCategory(
-            title: "최근 사용",
-            icon: "🕒",
-            emojis: recentEmojis
-        )
-        return [recentCategory] + baseCategories
+          title: "최근 사용",
+          icon: "🕒",
+          emojis: recentEmojis
+        );
+        _cachedCategories = [recentCategory] + baseCategories;
+      }
     }
     
     private var emojiToVariations: [String: [String]] = [:]
@@ -98,7 +105,8 @@ class EmojiProvider {
             recentEmojis = Array(recentEmojis.prefix(maxRecentCount))
         }
         
-        saveRecents()
+        saveRecents();
+        updateCategoriesCache();
     }
     
     private func loadRecents() {
