@@ -41,6 +41,10 @@ class KeyboardViewController: UIInputViewController {
   var cursorStartTimer: Timer?
   var cursorRepeatCount = 0
   
+  // 스페이스바 드래그 커서 이동 관련
+  var accumulatedPanX: CGFloat = 0;
+  var isSpaceDragging: Bool = false;
+  
   // 키보드가 직접 텍스트를 조작 중일 때 selectionDidChange 리셋을 방지하는 플래그
   var isSuppressingSelectionChange = false;
   
@@ -167,8 +171,9 @@ class KeyboardViewController: UIInputViewController {
   }
 
   override func selectionWillChange(_ textInput: UITextInput?) {
-    super.selectionWillChange(textInput)
-    flushHangul()
+    super.selectionWillChange(textInput);
+    guard !isSuppressingSelectionChange else { return; }
+    flushHangul();
   }
 
   // MARK: - Private 헬퍼

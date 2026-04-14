@@ -159,10 +159,15 @@ extension KeyboardViewController {
     let langBtn = makeGlassButton(title: isHangul ? "ENG" : "한글", id: "lang", isSpecial: true, tag: 202, fontSize:16)
     langBtn.addTarget(self, action: #selector(langTapped), for: .touchUpInside)
 
-    let spaceBtn = makeGlassButton(title: "", id: " ", isSpecial: false, tag: 203)
-    let dotBtn = makeGlassButton(title: ".", id: ".", isSpecial: false, tag: 204)
-    let enterBtn = makeGlassButton(title: "↵", id: "enter", isSpecial: true, tag: 205)
-    enterBtn.addTarget(self, action: #selector(enterTapped), for: .touchUpInside)
+    let enterBtn = makeGlassButton(title: "↵", id: "enter", isSpecial: true, tag: 205);
+    enterBtn.addTarget(self, action: #selector(enterTapped), for: .touchUpInside);
+
+    let spaceBtn = makeGlassButton(title: "", id: " ", isSpecial: false, tag: 203);
+    let dotBtn = makeGlassButton(title: ".", id: ".", isSpecial: false, tag: 204);
+
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(handleSpacePan(_:)));
+    pan.delaysTouchesBegan = false;
+    spaceBtn.addGestureRecognizer(pan);
 
     [symBtn, langBtn, spaceBtn, dotBtn, enterBtn].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false
@@ -223,7 +228,7 @@ extension KeyboardViewController {
     btn.touchDelegate = self;
     
     // 버튼 사이의 공백을 터치 영역으로 포함
-    btn.touchAreaInsets = UIEdgeInsets(top: -2.5, left: -1.5, bottom: -2.5, right: -1.5);
+    btn.touchAreaInsets = UIEdgeInsets(top: -3, left: -1.5, bottom: -3, right: -1.5);
 
     if !isSpecial {
       let lp = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))

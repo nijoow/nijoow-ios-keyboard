@@ -20,7 +20,8 @@ extension KeyboardViewController {
     if key == "dummy" || key == "" { return; }
     
     // 특수 키는 여기서 처리하지 않음 (addTarget 핸들러에서 담당)
-    let specialKeys = ["shift", "backspace", "lang", "symbol", "enter", "custom", "dismiss"];
+    // 스페이스바(" ")도 탭/드래그 구분을 위해 여기서 제외하고 touchesEnded에서 처리
+    let specialKeys = ["shift", "backspace", "lang", "symbol", "enter", "custom", "dismiss", " "];
     if specialKeys.contains(key) || key.contains("cursor") { return; }
     
     // 일반 문자 입력: 즉각 햄틱 + 입력 처리
@@ -262,7 +263,51 @@ extension KeyboardViewController {
 
   @objc func customKeyTapped(_ sender: UIButton) {
     if let custom = sender.accessibilityLabel {
-      textDocumentProxy.insertText(custom)
+      flushHangul();
+      isSuppressingSelectionChange = true;
+      textDocumentProxy.insertText(custom);
+      isSuppressingSelectionChange = false;
+    }
+  }
+
+  // MARK: - 스페이스바 드래그 커서 이동
+  
+  @objc func handleSpacePan(_ gesture: UIPanGestureRecognizer) {
+    let translation = gesture.translation(in: gesture.view)
+    
+    switch gesture.state {
+    case .began:
+      // 드래그 시작 시 현재 한글 조합을 완료하여 데이터 꼬임 방지
+      flushHangul();
+      accumulatedPanX = 0;
+      isSpaceDragging = true;
+      
+    case .changed:
+      // 이전 실시간 이동량을 누적
+      accumulatedPanX += translation.x;
+      // 처리가 완료된 상대적 증분만 남기기 위해 translation 리셋
+      gesture.setTranslation(.zero, in: gesture.view);
+      
+      let threshold: CGFloat = 12.0; // 한 칸 이동을 위한 드래그 거리 (픽셀 단위)
+      
+      if abs(accumulatedPanX) >= threshold {
+        let direction = accumulatedPanX > 0 ? 1 : -1;
+        textDocumentProxy.adjustTextPosition(byCharacterOffset: direction);
+        triggerHaptic();
+        
+        // 이동한 만큼의 거리를 뺀 나머지만 남겨서 부드러운 연속 이동 가능케 함
+        accumulatedPanX -= CGFloat(direction) * threshold;
+      }
+      
+    case .ended, .cancelled:
+      accumulatedPanX = 0;
+      // 약간의 딜레이를 주어 touchesEnded가 먼저 처리될 기회를 주거나 상태를 정리합니다.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+        self.isSpaceDragging = false;
+      }
+      break;
+    default:
+      break;
     }
   }
 
@@ -355,6 +400,13 @@ extension KeyboardViewController: KeyButtonDelegate {
   func keyButtonTouchesEnded(_ button: KeyButton) {
     // 안전망: touchesCancelled 등으로 인해 타이머가 정리되지 않은 경우 대비
     let key = button.keyValue;
+    
+    // 스페이스바 탭 입력 처리 (드래그 중이 아니었을 때만)
+    if key == " " && !isSpaceDragging {
+      triggerHaptic();
+      textDocumentProxy.insertText(" ");
+    }
+    
     if key == "backspace" {
       backspaceStartTimer?.invalidate();
       backspaceTimer?.invalidate();
