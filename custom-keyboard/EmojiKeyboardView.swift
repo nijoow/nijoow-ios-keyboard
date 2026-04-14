@@ -35,8 +35,13 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
     }
     
     private func setupView() {
-        // [옵시디언 블랙] 더욱 깊고 럭셔리한 다크 배경
-        self.backgroundColor = UIColor(red: 0.03, green: 0.03, blue: 0.03, alpha: 0.96)
+        if isDarkMode {
+            // [옵시디언 블랙] 더욱 깊고 럭셔리한 다크 배경
+            self.backgroundColor = UIColor(red: 0.03, green: 0.03, blue: 0.03, alpha: 0.96)
+        } else {
+            // [프로스트 화이트] 밝고 깨끗한 라이트 배경
+            self.backgroundColor = UIColor(red: 0.88, green: 0.89, blue: 0.92, alpha: 0.96)
+        }
         self.layer.cornerRadius = 12
         self.clipsToBounds = true
         
@@ -60,15 +65,15 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         
         // [옵시디언 블랙] 스모키 유리 배경
         let dockBg = UIView()
-        dockBg.backgroundColor = UIColor(white: 1.0, alpha: 0.08)
+        dockBg.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.08) : UIColor(white: 0.0, alpha: 0.08)
         dockBg.layer.cornerRadius = 10
         dockBg.translatesAutoresizingMaskIntoConstraints = false
         
         let backspaceBtn = UIButton(type: .system)
         backspaceBtn.setTitle("⌫", for: .normal)
         backspaceBtn.titleLabel?.font = UIFont.systemFont(ofSize: 20, weight: .medium)
-        backspaceBtn.setTitleColor(.white, for: .normal)
-        backspaceBtn.backgroundColor = UIColor(white: 1.0, alpha: 0.12)
+        backspaceBtn.setTitleColor(isDarkMode ? .white : .black, for: .normal)
+        backspaceBtn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.12) : UIColor(white: 0.0, alpha: 0.12)
         backspaceBtn.layer.cornerRadius = 10
         backspaceBtn.addTarget(self, action: #selector(backspaceTapped), for: .touchUpInside)
         backspaceBtn.translatesAutoresizingMaskIntoConstraints = false

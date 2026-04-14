@@ -41,6 +41,9 @@ class KeyboardViewController: UIInputViewController {
   var cursorStartTimer: Timer?
   var cursorRepeatCount = 0
   
+  // 키보드가 직접 텍스트를 조작 중일 때 selectionDidChange 리셋을 방지하는 플래그
+  var isSuppressingSelectionChange = false;
+  
   // MARK: - 테마 관련 감지
   var wasCustom = false
   var wasSymbol = false
@@ -77,17 +80,17 @@ class KeyboardViewController: UIInputViewController {
 
   var activeGlassColor: UIColor {
     if isDarkMode {
-      // 다크 모드: 버튼이 빛나는 것처럼 화이트 틴트 강조
-      return UIColor(white: 1.0, alpha: 0.9);
+      // 다크 모드: 너무 밝지 않은 적당한 회색
+      return UIColor(white: 0.45, alpha: 0.85);
     } else {
-      // 라이트 모드: 버튼이 눌려진 흑요석처럼 짙게 변함
-      return UIColor(white: 0.0, alpha: 0.75);
+      // 라이트 모드: 너무 어둡지 않은 적당한 회색
+      return UIColor(white: 0.75, alpha: 0.85);
     }
   }
 
   var activeTextColor: UIColor {
-    // 배경색에 맞춰 텍스트 색상 반전
-    return isDarkMode ? .black : .white;
+    // 배경색(적당한 회색)에 맞춰, 완전히 반전되기보다는 일반 키 텍스트 색상과 유사하게 유지
+    return keyTextColor;
   }
 
   var keyBorderColor: CGColor {
@@ -139,8 +142,18 @@ class KeyboardViewController: UIInputViewController {
   }
 
   override func viewDidAppear(_ animated: Bool) {
-    super.viewDidAppear(animated)
-    rebuildKeyboard()
+    super.viewDidAppear(animated);
+    rebuildKeyboard();
+  }
+
+  override func selectionDidChange(_ textInput: UITextInput?) {
+    super.selectionDidChange(textInput);
+    // 키보드 자체가 텍스트를 조작 중이면 리셋하지 않음 (조합 중 deleteBackward+insertText 등)
+    guard !isSuppressingSelectionChange else { return; }
+    // 사용자가 직접 커서를 이동한 경우에만 한글 조합 상태 초기화
+    if activeLength > 0 || composingChar != nil {
+      flushHangul();
+    }
   }
 
   @available(iOS, introduced: 8.0, deprecated: 17.0, message: "Use trait change registration APIs instead")
@@ -160,10 +173,11 @@ class KeyboardViewController: UIInputViewController {
 
   // MARK: - Private 헬퍼
   private func resetKeyboardState() {
-    automata.reset()
-    composingChar = nil
-    isShifted = false
-    isShiftLocked = false
+    automata.reset();
+    composingChar = nil;
+    activeLength = 0;
+    isShifted = false;
+    isShiftLocked = false;
     
     if let lastLang = UserDefaults.standard.object(forKey: "isHangulState") as? Bool {
       isHangul = lastLang

@@ -10,21 +10,38 @@ extension KeyboardViewController {
   // MARK: - 문자 및 한글 입력 로직
   
   @objc func letterTapped(_ sender: KeyButton) {
-    let key = sender.keyValue
-    guard let ch = key.first else { return }
+    // touchesBegan에서 처리하므로 중복 방지를 위해 비워둠 (혹은 무시)
+  }
+
+  // delegate(touchesBegan)로 호출되는 일반 문자 키 전용 입력 함수
+  // 특수 키(backspace, cursor, shift 등)는 각자의 addTarget 핸들러에서 처리
+  func handleKeyPress(_ sender: KeyButton) {
+    let key = sender.keyValue;
+    if key == "dummy" || key == "" { return; }
+    
+    // 특수 키는 여기서 처리하지 않음 (addTarget 핸들러에서 담당)
+    let specialKeys = ["shift", "backspace", "lang", "symbol", "enter", "custom", "dismiss"];
+    if specialKeys.contains(key) || key.contains("cursor") { return; }
+    
+    // 일반 문자 입력: 즉각 햄틱 + 입력 처리
+    triggerHaptic();
+    
+    guard let ch = key.first else { return; }
 
     if isHangul && ch.isLetter && !isSymbol {
-      inputHangul(ch)
+      inputHangul(ch);
     } else {
-      flushHangul()
-      let toInsert = (ch.isLetter && isShifted && !isSymbol) ? key.uppercased() : key
-      textDocumentProxy.insertText(toInsert)
+      flushHangul();
+      isSuppressingSelectionChange = true;
+      let toInsert = (ch.isLetter && isShifted && !isSymbol) ? key.uppercased() : key;
+      textDocumentProxy.insertText(toInsert);
+      isSuppressingSelectionChange = false;
     }
 
     // 글자 입력 후 일회용 시프트 해제 (심볼 모드가 아닐 때만)
     if isShifted && !isShiftLocked && !isSymbol {
-      isShifted = false
-      rebuildKeyboard()
+      isShifted = false;
+      rebuildKeyboard();
     }
   }
 
@@ -36,10 +53,15 @@ extension KeyboardViewController {
       jamo = hangul;
     } else {
       flushHangul();
+      isSuppressingSelectionChange = true;
       textDocumentProxy.insertText(String(ch));
+      isSuppressingSelectionChange = false;
       return;
     }
 
+    // selectionDidChange 억제: 내부 조작 중 automata 리셋 방지
+    isSuppressingSelectionChange = true;
+    
     // 기존 조합 중인 글자 삭제 (밑줄 없는 효과를 위해)
     for _ in 0..<activeLength {
       textDocumentProxy.deleteBackward();
@@ -57,6 +79,8 @@ extension KeyboardViewController {
       activeLength = 0;
       composingChar = nil;
     }
+    
+    isSuppressingSelectionChange = false;
   }
 
   func flushHangul() {
@@ -261,8 +285,9 @@ extension KeyboardViewController {
   }
 
   private func handleBackspace() {
+    isSuppressingSelectionChange = true;
+    
     if isHangul && !isSymbol {
-      // 한글 조합 중일 때
       // 한글 조합 중일 때 (스택에 자모가 남아있음)
       if !automata.jamoStack.isEmpty {
         // 기존 조합 글자 삭제
@@ -287,16 +312,18 @@ extension KeyboardViewController {
         if textDocumentProxy.hasText {
           triggerHaptic();
           textDocumentProxy.deleteBackward();
-          activeLength = 0; // 혹시 모를 육안 동기화
+          activeLength = 0;
         }
       }
     } else {
       // 영문 또는 기호 모드
       if textDocumentProxy.hasText {
-        textDocumentProxy.deleteBackward()
-        triggerHaptic() // 글자가 지워지므로 진동
+        textDocumentProxy.deleteBackward();
+        triggerHaptic();
       }
     }
+    
+    isSuppressingSelectionChange = false;
   }
 
   private func startContinuousBackspace(interval: TimeInterval = 0.1) {
@@ -312,6 +339,29 @@ extension KeyboardViewController {
       } else if self.backspaceRepeatCount == 50 {
         self.startContinuousBackspace(interval: 0.03)
       }
+    }
+  }
+}
+
+// MARK: - KeyButtonDelegate
+
+extension KeyboardViewController: KeyButtonDelegate {
+  func keyButtonTouchesBegan(_ button: KeyButton) {
+    // 일반 문자 키만 delegate에서 즉시 처리 (제로 지연 입력)
+    // 특수 키는 addTarget 이벤트(.touchDown/.touchUpInside)로 처리됨
+    handleKeyPress(button);
+  }
+  
+  func keyButtonTouchesEnded(_ button: KeyButton) {
+    // 안전망: touchesCancelled 등으로 인해 타이머가 정리되지 않은 경우 대비
+    let key = button.keyValue;
+    if key == "backspace" {
+      backspaceStartTimer?.invalidate();
+      backspaceTimer?.invalidate();
+    }
+    if key == "cursor_left" || key == "cursor_right" {
+      cursorStartTimer?.invalidate();
+      cursorTimer?.invalidate();
     }
   }
 }

@@ -220,14 +220,12 @@ extension KeyboardViewController {
     btn.layer.shadowOpacity = isDarkMode ? 0.55 : 0.15; // 라이트 모드에선 그림자를 훨씬 연하게
     btn.layer.shadowRadius = isDarkMode ? 8 : 4; // 라이트 모드에선 더 좁은 반경
     btn.isExclusiveTouch = false;
+    btn.touchDelegate = self;
     
     // 버튼 사이의 공백을 터치 영역으로 포함
     btn.touchAreaInsets = UIEdgeInsets(top: -2.5, left: -1.5, bottom: -2.5, right: -1.5);
-    
-    btn.addTarget(self, action: #selector(hapticTouchDown(_:)), for: .touchDown);
 
     if !isSpecial {
-      btn.addTarget(self, action: #selector(letterTapped(_:)), for: .touchUpInside)
       let lp = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
       lp.minimumPressDuration = 0.4
       btn.addGestureRecognizer(lp)
@@ -248,20 +246,28 @@ extension KeyboardViewController {
   // MARK: - 외관 업데이트
   
   func rebuildKeyboard() {
+    CATransaction.begin();
+    CATransaction.setDisableActions(true);
+    
     if isCustom != wasCustom || isSymbol != wasSymbol {
-      buildKeyboard()
-      wasCustom = isCustom
-      wasSymbol = isSymbol
+      buildKeyboard();
+      wasCustom = isCustom;
+      wasSymbol = isSymbol;
     } else {
-      updateKeyLabels()
-      updateAppearance()
+      updateKeyLabels();
+      updateAppearance();
     }
+    
+    CATransaction.commit();
   }
 
   func updateAppearance() {
+    CATransaction.begin();
+    CATransaction.setDisableActions(true);
+    
     for btn in allKeyButtons {
-      let id = btn.keyValue
-      let isSpecial = (id == "shift" || id == "backspace" || id == "symbol" || id == "lang" || id == "enter" || id == "custom" || id == "dismiss" || id.contains("cursor"))
+      let id = btn.keyValue;
+      let isSpecial = (id == "shift" || id == "backspace" || id == "symbol" || id == "lang" || id == "enter" || id == "custom" || id == "dismiss" || id.contains("cursor"));
       
       if id == "shift" {
         let isActive = isShifted || isShiftLocked;
@@ -306,6 +312,8 @@ extension KeyboardViewController {
       // 3D 글래스 레이어 업데이트 (중앙 집중식 관리)
       btn.updateLayerAppearance();
     }
+    
+    CATransaction.commit();
   }
 
   // MARK: - 개별 행 생성
