@@ -404,7 +404,10 @@ extension KeyboardViewController: KeyButtonDelegate {
     // 스페이스바 탭 입력 처리 (드래그 중이 아니었을 때만)
     if key == " " && !isSpaceDragging {
       triggerHaptic();
+      flushHangul();
+      isSuppressingSelectionChange = true;
       textDocumentProxy.insertText(" ");
+      isSuppressingSelectionChange = false;
     }
     
     if key == "backspace" {
@@ -422,8 +425,11 @@ extension KeyboardViewController: KeyButtonDelegate {
 
 extension KeyboardViewController: CustomKeyboardViewDelegate {
   func customKeyboardView(_ view: CustomKeyboardView, didSelectCustom custom: String) {
-    triggerHaptic()
-    textDocumentProxy.insertText(custom)
+    triggerHaptic();
+    flushHangul();
+    isSuppressingSelectionChange = true;
+    textDocumentProxy.insertText(custom);
+    isSuppressingSelectionChange = false;
   }
   
   func customKeyboardViewDidTapBackspace(_ view: CustomKeyboardView) {

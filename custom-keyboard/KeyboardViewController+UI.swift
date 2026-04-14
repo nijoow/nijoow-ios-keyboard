@@ -62,11 +62,12 @@ extension KeyboardViewController {
   }
 
   private func setupMainContentStack(under utilRow: UIView, above botRow: UIView) {
-    let contentStack = UIStackView()
+    let contentStack = ExpandedHitStackView()
     contentStack.axis = .vertical
     contentStack.distribution = .fill
     contentStack.spacing = 5;
     contentStack.translatesAutoresizingMaskIntoConstraints = false
+    contentStack.clipsToBounds = false; // 자식들의 확장된 터치 영역 허용
     view.addSubview(contentStack)
 
     NSLayoutConstraint.activate([
@@ -108,10 +109,11 @@ extension KeyboardViewController {
   // MARK: - 요소 생성
   
   func makeUtilityRow() -> UIView {
-    let stack = UIStackView()
+    let stack = ExpandedHitStackView()
     stack.axis = .horizontal
     stack.distribution = .fillEqually
     stack.spacing = 5;
+    stack.clipsToBounds = false;
 
     let cursors: [(CursorIconType, String)] = [
       (.lineStart, "cursor_line_start"), (.left, "cursor_left"),
@@ -150,7 +152,7 @@ extension KeyboardViewController {
   }
 
   func makeBottomRow() -> UIView {
-    let container = UIView()
+    let container = ExpandedHitView()
     container.clipsToBounds = false // 가장자리 터치 및 애니메이션 잘림 방지
     let symBtnTitle = isSymbol ? (isHangul ? "한글" : "ENG") : "♥︎"
     let symBtn = makeGlassButton(title: symBtnTitle, id: "symbol", isSpecial: true, tag: 201, fontSize:16)
@@ -227,8 +229,8 @@ extension KeyboardViewController {
     btn.isExclusiveTouch = false;
     btn.touchDelegate = self;
     
-    // 버튼 사이의 공백을 터치 영역으로 포함
-    btn.touchAreaInsets = UIEdgeInsets(top: -3, left: -1.5, bottom: -3, right: -1.5);
+    // 버튼 사이의 공백을 터치 영역으로 포함 (가로 3pt, 세로 5pt 간격보다 크게 설정하여 오버랩 생성)
+    btn.touchAreaInsets = UIEdgeInsets(top: -3.0, left: -2.0, bottom: -3.0, right: -2.0);
 
     if !isSpecial {
       let lp = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
@@ -330,8 +332,8 @@ extension KeyboardViewController {
       for (idx, btn) in buttons.enumerated() {
         // 숫자 행은 상단 여백을 위해 top을 더 크게 확장
         btn.touchAreaInsets.top = -10.0;
-        if idx == 0 { btn.touchAreaInsets.left = -8.0; }
-        if idx == buttons.count - 1 { btn.touchAreaInsets.right = -8.0; }
+        if idx == 0 { btn.touchAreaInsets.left = -10.0; }
+        if idx == buttons.count - 1 { btn.touchAreaInsets.right = -10.0; }
       }
     }
     return row;
@@ -342,8 +344,8 @@ extension KeyboardViewController {
     if let stack = row.subviews.first as? UIStackView {
       let buttons = stack.arrangedSubviews.compactMap { $0 as? KeyButton };
       for (idx, btn) in buttons.enumerated() {
-        if idx == 0 { btn.touchAreaInsets.left = -8.0; }
-        if idx == buttons.count - 1 { btn.touchAreaInsets.right = -8.0; }
+        if idx == 0 { btn.touchAreaInsets.left = -10.0; }
+        if idx == buttons.count - 1 { btn.touchAreaInsets.right = -10.0; }
       }
     }
     return row;
@@ -361,12 +363,14 @@ extension KeyboardViewController {
   }
 
   func makeLetterRowStack(_ chars: [String], rowOffset: Int) -> UIView {
-    let container = UIView()
-    let stack = UIStackView()
+    let container = ExpandedHitView()
+    container.clipsToBounds = false;
+    let stack = ExpandedHitStackView()
     stack.axis = .horizontal
     stack.distribution = .fill
     stack.spacing = 3;
     stack.translatesAutoresizingMaskIntoConstraints = false
+    stack.clipsToBounds = false;
     
     // 9개 버튼일 경우 양옆에 더미 버튼 추가
     if chars.count == 9 {
@@ -426,10 +430,11 @@ extension KeyboardViewController {
   }
 
   func makeEqualRow(keys: [String], rowOffset: Int = 0) -> UIView {
-    let stack = UIStackView()
+    let stack = ExpandedHitStackView()
     stack.axis = .horizontal
     stack.distribution = .fillEqually
     stack.spacing = 3;
+    stack.clipsToBounds = false;
     for (idx, key) in keys.enumerated() {
       stack.addArrangedSubview(makeGlassButton(title: key, id: key, isSpecial: false, tag: rowOffset + idx))
     }
@@ -437,7 +442,7 @@ extension KeyboardViewController {
   }
 
   func makeShiftRow(middleKeys: [String], keyValues: [String], rowOffset: Int) -> UIView {
-    let container = UIView()
+    let container = ExpandedHitView()
     container.clipsToBounds = false // 가장자리 애니메이션 잘림 방지
     
     // 이 시점에 이미 isSymbol 상태가 반영되어 있으므로 여기서도 체크 필요
