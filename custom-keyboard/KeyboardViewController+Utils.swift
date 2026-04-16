@@ -17,8 +17,7 @@ extension KeyboardViewController {
     
     switch gesture.state {
     case .began:
-      triggerHaptic()
-      let variants = getVariants(for: char)
+        let variants = getVariants(for: char)
       if variants.count <= 1 {
         gesture.state = .failed
         return
@@ -118,8 +117,7 @@ extension KeyboardViewController {
     if newIdx >= popupItems.count { newIdx = popupItems.count - 1 }
     
     if popupSelectedIndex != newIdx {
-        triggerHaptic()
-        popupSelectedIndex = newIdx
+            popupSelectedIndex = newIdx
     }
     
     for (i, lbl) in popupLabels.enumerated() {
@@ -215,9 +213,5 @@ extension KeyboardViewController {
         UIBezierPath(roundedRect: barRect, cornerRadius: barW/2).fill()
       }
     }
-  }
-
-  @objc func hapticTouchDown(_ sender: UIButton) {
-    triggerHaptic()
   }
 }

@@ -3,7 +3,6 @@ import UIKit
 protocol CustomKeyboardViewDelegate: AnyObject {
     func customKeyboardView(_ view: CustomKeyboardView, didSelectCustom custom: String)
     func customKeyboardViewDidTapBackspace(_ view: CustomKeyboardView)
-    func customKeyboardViewDidRequestHaptic(_ view: CustomKeyboardView)
 }
 
 class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDelegateFlowLayout {
@@ -94,6 +93,7 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
         collectionView.delegate = self
+        collectionView.isPrefetchingEnabled = false // [메모리 최적화] 프리페치에 의한 추가 메모리 사용 방지
         collectionView.register(CustomCell.self, forCellWithReuseIdentifier: "CustomCell")
         collectionView.register(CustomHeaderView.self, forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader, withReuseIdentifier: "CustomHeader")
         collectionView.translatesAutoresizingMaskIntoConstraints = false
@@ -172,7 +172,6 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
                   let custom = cell.label.text else { return }
             
             if EmojiProvider.shared.supportsSkinTone(custom) {
-                delegate?.customKeyboardViewDidRequestHaptic(self)
                 showVariationPopup(for: custom, at: cell)
                 updateVariationSelection(at: pointInView)
             }
@@ -217,7 +216,6 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         if index > maxIndex { index = maxIndex }
         
         if popup.selectedIndex != index {
-            delegate?.customKeyboardViewDidRequestHaptic(self)
             popup.updateSelection(at: index)
         }
     }
@@ -257,7 +255,6 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         ])
         
         currentPopup = popup
-        delegate?.customKeyboardViewDidRequestHaptic(self)
     }
     
     @objc private func dockButtonTapped(_ sender: UIButton) {
@@ -279,7 +276,6 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
                 if targetY < 0 { targetY = 0 }
                 
                 collectionView.setContentOffset(CGPoint(x: 0, y: targetY), animated: true)
-                delegate?.customKeyboardViewDidRequestHaptic(self)
             }
         }
     }
@@ -310,31 +306,11 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         header.label.text = provider.categories[indexPath.section].title
         header.label.textColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.9) : .black
         
-        // 투명도 있는 배경색 (Glassmorphism 헤더)
-        if UIAccessibility.isReduceTransparencyEnabled {
-             header.backgroundColor = isDarkMode ? .black : .white
-        } else {
-             header.backgroundColor = isDarkMode ? UIColor(white: 0.2, alpha: 0.3) : UIColor(white: 1, alpha: 0.4)
-             
-             // Blur Effect
-             // [최적화] 블러 뷰가 이미 존재하는지 체크하고, 없다면 생성합니다.
-             if let existingBlur = header.viewWithTag(99) as? UIVisualEffectView {
-                 existingBlur.effect = UIBlurEffect(style: isDarkMode ? .dark : .extraLight)
-             } else {
-                 let blurEffect = UIBlurEffect(style: isDarkMode ? .dark : .extraLight)
-                 let blurView = UIVisualEffectView(effect: blurEffect)
-                 blurView.tag = 99
-                 blurView.alpha = 0.5 // 메모리 및 렌더링 가독성을 위해 투명도 살짝 적용
-                 blurView.translatesAutoresizingMaskIntoConstraints = false
-                 header.insertSubview(blurView, at: 0)
-                 NSLayoutConstraint.activate([
-                     blurView.leadingAnchor.constraint(equalTo: header.leadingAnchor),
-                     blurView.trailingAnchor.constraint(equalTo: header.trailingAnchor),
-                     blurView.topAnchor.constraint(equalTo: header.topAnchor),
-                     blurView.bottomAnchor.constraint(equalTo: header.bottomAnchor)
-                 ])
-             }
-        }
+        // [메모리 최적화] UIVisualEffectView(블러) 제거 — 단순 반투명 배경으로 대체
+        // 블러 뷰는 GPU 메모리를 매우 높게 소비하여 키보드 확장에서 Code 9 크래시의 주요 원인
+        header.backgroundColor = isDarkMode
+            ? UIColor(white: 0.15, alpha: 0.85)
+            : UIColor(white: 0.95, alpha: 0.85)
         
         return header
     }

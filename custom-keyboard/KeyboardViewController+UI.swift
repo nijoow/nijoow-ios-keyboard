@@ -11,57 +11,103 @@ extension KeyboardViewController {
   
   func buildKeyboard() {
     view.subviews.forEach { $0.removeFromSuperview() }
+    utilityRow = nil
+    bottomRow = nil
+    mainContentStack = nil
+    customKeyboardView = nil
     allKeyButtons.removeAll()
     shiftButton = nil
     
-    let utilRow = makeUtilityRow()
-    utilRow.translatesAutoresizingMaskIntoConstraints = false
-    view.addSubview(utilRow)
-
+    // 1. 바톰 행 (view의 bottom에 핀)
     let botRow = makeBottomRow()
     botRow.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(botRow)
+    bottomRow = botRow
 
     NSLayoutConstraint.activate([
-      utilRow.topAnchor.constraint(equalTo: view.topAnchor, constant: 6),
-      utilRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
-      utilRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
-      utilRow.heightAnchor.constraint(equalToConstant: KeyboardConstants.UTIL_ROW_H),
-
       botRow.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -6),
       botRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
       botRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
       botRow.heightAnchor.constraint(equalToConstant: KeyboardConstants.BOTTOM_ROW_H)
     ])
+    botRow.setContentHuggingPriority(.required, for: .vertical)
+    botRow.setContentCompressionResistancePriority(.required, for: .vertical)
+
+    // 2. 메인 콘텐츠 스택 (botRow 위로 쌓기)
+    let contentStack = setupMainContentStack(above: botRow)
+    
+    // 3. 유틸리티 행 (contentStack 위로 쌓기)
+    let utilRow = makeUtilityRow()
+    utilRow.translatesAutoresizingMaskIntoConstraints = false
+    view.addSubview(utilRow)
+    utilityRow = utilRow
+
+    NSLayoutConstraint.activate([
+      utilRow.bottomAnchor.constraint(equalTo: contentStack.topAnchor, constant: -7),
+      utilRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
+      utilRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
+      utilRow.heightAnchor.constraint(equalToConstant: KeyboardConstants.UTIL_ROW_H)
+    ])
+    utilRow.setContentHuggingPriority(.required, for: .vertical)
+    utilRow.setContentCompressionResistancePriority(.required, for: .vertical)
+
+    // 4. view.topAnchor에 낮은 우선순위 힌트 추가
+    let hintConstraint = utilRow.topAnchor.constraint(equalTo: view.topAnchor, constant: 6)
+    hintConstraint.priority = UILayoutPriority(250) // 높이 충돌 방지를 위해 Low 설정
+    hintConstraint.isActive = true
+
+    // 5. 시작 가시성 적용
+    updatePanelVisibility()
+  }
+
+  private func updatePanelVisibility() {
+    guard let bot = bottomRow else { return }
 
     if isCustom {
-      setupCustomPanel(under: utilRow, above: botRow)
+      // 1. 커스텀 뷰 생성 (빈 패널 방지)
+      if customKeyboardView == nil {
+        setupCustomPanel(above: bot)
+      }
+      customKeyboardView?.isHidden = false
+
+      // 2. 메인 스택 숨김
+      mainContentStack?.isHidden = true
     } else {
-      setupMainContentStack(under: utilRow, above: botRow)
+      // 1. 메인 스택 표시
+      mainContentStack?.isHidden = false
+
+      // 2. 이모지 패널 등 무거운 요소 메모리 해제
+      if let existingCustom = customKeyboardView {
+        existingCustom.removeFromSuperview()
+        customKeyboardView = nil
+      }
     }
   }
 
-  private func setupCustomPanel(under utilRow: UIView, above botRow: UIView) {
+  private func setupCustomPanel(above botRow: UIView) {
     let customView = CustomKeyboardView(isDarkMode: isDarkMode)
     customView.delegate = self
     customView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(customView)
+    self.customKeyboardView = customView
     
-    // 한영 키보드의 (숫자행 1 + 문자행 3 + 행간 간격 3 + 상하 여백 2) = 199pt
-    let totalHeight: CGFloat = 179
-    
+    // [단방향 핀 - 상향] 아래에서만 핀 + 높이 고정 (view.top 참조 없음)
+    let hc = customView.heightAnchor.constraint(equalToConstant: 179)
+    hc.priority = .required
     NSLayoutConstraint.activate([
-      customView.topAnchor.constraint(equalTo: utilRow.bottomAnchor, constant: 7),
       customView.bottomAnchor.constraint(equalTo: botRow.topAnchor, constant: -7),
+      hc,
       customView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
-      customView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
-      customView.heightAnchor.constraint(equalToConstant: totalHeight)
+      customView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6)
     ])
     
-    view.layoutIfNeeded()
+    customView.setContentHuggingPriority(.required, for: .vertical)
+    customView.setContentCompressionResistancePriority(.required, for: .vertical)
   }
 
-  private func setupMainContentStack(under utilRow: UIView, above botRow: UIView) {
+  private func setupMainContentStack(above botRow: UIView) -> UIStackView {
+    if let existing = mainContentStack { return existing }
+    
     let contentStack = ExpandedHitStackView()
     contentStack.axis = .vertical
     contentStack.distribution = .fill
@@ -69,10 +115,15 @@ extension KeyboardViewController {
     contentStack.translatesAutoresizingMaskIntoConstraints = false
     contentStack.clipsToBounds = false; // 자식들의 확장된 터치 영역 허용
     view.addSubview(contentStack)
+    self.mainContentStack = contentStack
 
+    // [단방향 핀 - 상향] 아래에서만 핀 + 높이 절대 고정
+    // view 높이가 896→277로 애니메이션되더라도 contentStack은 항상 바닥 기준
+    let stackHc = contentStack.heightAnchor.constraint(equalToConstant: 179)
+    stackHc.priority = .required
     NSLayoutConstraint.activate([
-      contentStack.topAnchor.constraint(equalTo: utilRow.bottomAnchor, constant: 7),
       contentStack.bottomAnchor.constraint(equalTo: botRow.topAnchor, constant: -7),
+      stackHc,
       contentStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
       contentStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6)
     ])
@@ -94,6 +145,11 @@ extension KeyboardViewController {
         $0.heightAnchor.constraint(equalToConstant: KeyboardConstants.MAIN_KEY_H).isActive = true
         contentStack.addArrangedSubview($0)
       }
+      
+      [numRow, v1, v2, v3].forEach { row in
+        row.setContentHuggingPriority(.required, for: .vertical)
+        row.setContentCompressionResistancePriority(.required, for: .vertical)
+      }
     } else {
       let v1 = makeLetterRow1()
       let v2 = makeLetterRow2()
@@ -103,7 +159,13 @@ extension KeyboardViewController {
         $0.heightAnchor.constraint(equalToConstant: KeyboardConstants.MAIN_KEY_H).isActive = true
         contentStack.addArrangedSubview($0)
       }
+      
+      [numRow, v1, v2, v3].forEach { row in
+        row.setContentHuggingPriority(.required, for: .vertical)
+        row.setContentCompressionResistancePriority(.required, for: .vertical)
+      }
     }
+    return contentStack
   }
 
   // MARK: - 요소 생성
@@ -223,9 +285,9 @@ extension KeyboardViewController {
     btn.layer.borderWidth = 0.5;
     btn.layer.borderColor = keyBorderColor;
     btn.layer.shadowColor = UIColor.black.cgColor;
-    btn.layer.shadowOffset = CGSize(width: 0, height: 3);
-    btn.layer.shadowOpacity = isDarkMode ? 0.55 : 0.15; // 라이트 모드에선 그림자를 훨씬 연하게
-    btn.layer.shadowRadius = isDarkMode ? 8 : 4; // 라이트 모드에선 더 좁은 반경
+    btn.layer.shadowOffset = CGSize(width: 0, height: 2);
+    btn.layer.shadowOpacity = isDarkMode ? 0.35 : 0.1;
+    btn.layer.shadowRadius = isDarkMode ? 4 : 2;
     btn.isExclusiveTouch = false;
     btn.touchDelegate = self;
     
@@ -257,13 +319,14 @@ extension KeyboardViewController {
     CATransaction.setDisableActions(true);
     
     if isCustom != wasCustom || isSymbol != wasSymbol {
-      buildKeyboard();
+      updatePanelVisibility();
       wasCustom = isCustom;
       wasSymbol = isSymbol;
-    } else {
-      updateKeyLabels();
-      updateAppearance();
     }
+    
+    // 외관 및 레이블은 패널 전환 여부와 무관하게 항상 업데이트
+    updateKeyLabels();
+    updateAppearance();
     
     CATransaction.commit();
   }
@@ -313,8 +376,8 @@ extension KeyboardViewController {
       }
       
       btn.layer.borderColor = keyBorderColor;
-      btn.layer.shadowOpacity = Float(isDarkMode ? 0.55 : 0.15);
-      btn.layer.shadowRadius = isDarkMode ? 8 : 4;
+      btn.layer.shadowOpacity = Float(isDarkMode ? 0.35 : 0.1);
+      btn.layer.shadowRadius = isDarkMode ? 4 : 2;
       
       // 3D 글래스 레이어 업데이트 (중앙 집중식 관리)
       btn.updateLayerAppearance();

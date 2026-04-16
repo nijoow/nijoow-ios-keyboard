@@ -55,4 +55,8 @@ struct KeyboardConstants {
   static let MAIN_KEY_H: CGFloat = 42
   static let BOTTOM_ROW_H: CGFloat = 38
   static let CORNER_RADIUS: CGFloat = 12
+  
+  // 전체 높이 고정용 (여백 포함, Safe Area 제외)
+  // 6(Top) + 34(Util) + 7(Gap) + 179(Main) + 7(Gap) + 38(Bottom) + 6(Padding) = 277
+  static let TOTAL_CONTENT_H: CGFloat = 277
 }

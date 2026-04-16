@@ -15,10 +15,9 @@ class KeyButton: UIButton {
   var keyValue: String = "";
   var touchAreaInsets: UIEdgeInsets = .zero;
   
-  // MARK: - 3D Glass 효과 레이어
+  // MARK: - 3D Glass 효과 레이어 (간소화: bezelLayer 제거)
   
   private let glassBodyLayer = CAGradientLayer();
-  private let bezelLayer = CALayer(); // 상단 반사광 엣지
   
   /// 버튼의 기본 배경색 (하이라이트 해제 시 복구용)
   var normalBackgroundColor: UIColor? {
@@ -38,21 +37,14 @@ class KeyButton: UIButton {
   }
   
   private func setupLayers() {
-    // 1. 글래스 바디 그라데이션 (입체감)
-    glassBodyLayer.locations = [0.0, 0.4, 1.0];
+    // 글래스 바디 그라데이션 (입체감 + 상단 하이라이트 통합)
+    glassBodyLayer.locations = [0.0, 0.05, 0.4, 1.0];
     glassBodyLayer.startPoint = CGPoint(x: 0.5, y: 0.0);
     glassBodyLayer.endPoint = CGPoint(x: 0.5, y: 1.0);
     layer.insertSublayer(glassBodyLayer, at: 0);
     
-    // 2. 상단 베젤 하이라이트 (유리 엣지 반사)
-    layer.addSublayer(bezelLayer);
-    
-    // 기본 레이어 설정
-    layer.masksToBounds = true;
-    
-    // [성능 최적화] 정지 상태의 레이어를 비트맵으로 캐싱하여 렌더링 부하 감소
-    layer.shouldRasterize = true;
-    layer.rasterizationScale = traitCollection.displayScale;
+    // masksToBounds = true로 설정하여 그라데이션이 cornerRadius를 따르도록 함
+    layer.masksToBounds = false;
     
     updateLayerAppearance();
   }
@@ -67,37 +59,30 @@ class KeyButton: UIButton {
     glassBodyLayer.frame = bounds;
     glassBodyLayer.cornerRadius = radius;
     
-    bezelLayer.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 0.8);
-    bezelLayer.cornerRadius = radius;
-    
-    // [성능 최적화] shadowPath 및 rasterizationScale 업데이트
+    // [성능 최적화] shadowPath 명시적 설정으로 GPU 부하 감소
     layer.shadowPath = UIBezierPath(roundedRect: bounds, cornerRadius: radius).cgPath;
-    layer.rasterizationScale = traitCollection.displayScale;
     
     CATransaction.commit();
   }
   
+  // [메모리 최적화] 글래스 그라데이션 색상을 static으로 캐시하여 매 호출마다 UIColor 재생성 방지
+  private static let darkGlassColors: [CGColor] = [
+    UIColor(white: 1.0, alpha: 0.18).cgColor,
+    UIColor(white: 1.0, alpha: 0.08).cgColor,
+    UIColor(white: 1.0, alpha: 0.0).cgColor,
+    UIColor(white: 0.0, alpha: 0.05).cgColor
+  ];
+  private static let lightGlassColors: [CGColor] = [
+    UIColor(white: 1.0, alpha: 0.55).cgColor,
+    UIColor(white: 1.0, alpha: 0.35).cgColor,
+    UIColor(white: 1.0, alpha: 0.1).cgColor,
+    UIColor(white: 0.0, alpha: 0.02).cgColor
+  ];
+
   func updateLayerAppearance() {
     let isDark = traitCollection.userInterfaceStyle == .dark;
-    
-    if isDark {
-      glassBodyLayer.colors = [
-        UIColor(white: 1.0, alpha: 0.08).cgColor,
-        UIColor(white: 1.0, alpha: 0.0).cgColor,
-        UIColor(white: 0.0, alpha: 0.05).cgColor
-      ];
-      bezelLayer.backgroundColor = UIColor(white: 1.0, alpha: 0.15).cgColor;
-    } else {
-      glassBodyLayer.colors = [
-        UIColor(white: 1.0, alpha: 0.35).cgColor,
-        UIColor(white: 1.0, alpha: 0.1).cgColor,
-        UIColor(white: 0.0, alpha: 0.02).cgColor
-      ];
-      bezelLayer.backgroundColor = UIColor(white: 1.0, alpha: 0.45).cgColor;
-    }
-    
+    glassBodyLayer.colors = isDark ? KeyButton.darkGlassColors : KeyButton.lightGlassColors;
     backgroundColor = normalBackgroundColor;
-    layer.borderColor = layer.borderColor;
   }
   
   // MARK: - 터치 이벤트 최적화
@@ -141,27 +126,18 @@ class KeyButton: UIButton {
   private func updateHighlightState() {
     let isDark = traitCollection.userInterfaceStyle == .dark;
     
-    // 애니메이션 중에는 래스터화를 꺼야 부드럽게 표현됨
-    layer.shouldRasterize = false;
-    
     UIView.animate(withDuration: 0.08, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction], animations: {
       if self.isHighlighted {
         self.transform = CGAffineTransform(scaleX: 0.92, y: 0.92);
-        self.bezelLayer.opacity = 0;
+        self.glassBodyLayer.opacity = 0.5;
         if isDark { self.alpha = 0.7; }
         else { self.backgroundColor = UIColor(white: 0.0, alpha: 0.15); }
       } else {
         self.transform = .identity;
-        self.bezelLayer.opacity = 1.0;
+        self.glassBodyLayer.opacity = 1.0;
         self.alpha = 1.0;
         self.backgroundColor = self.normalBackgroundColor;
       }
-    }, completion: { _ in
-      // 애니메이션 완료 후 다시 래스터화 활성화하여 성능 확보
-      if !self.isHighlighted {
-        self.layer.shouldRasterize = true;
-      }
-    });
+    }, completion: nil);
   }
 }
-

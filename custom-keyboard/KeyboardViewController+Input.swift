@@ -25,7 +25,6 @@ extension KeyboardViewController {
     if specialKeys.contains(key) || key.contains("cursor") { return; }
     
     // 일반 문자 입력: 즉각 햄틱 + 입력 처리
-    triggerHaptic();
     
     guard let ch = key.first else { return; }
 
@@ -33,10 +32,10 @@ extension KeyboardViewController {
       inputHangul(ch);
     } else {
       flushHangul();
-      isSuppressingSelectionChange = true;
-      let toInsert = (ch.isLetter && isShifted && !isSymbol) ? key.uppercased() : key;
-      textDocumentProxy.insertText(toInsert);
-      isSuppressingSelectionChange = false;
+      performWithoutSelectionChange {
+        let toInsert = (ch.isLetter && isShifted && !isSymbol) ? key.uppercased() : key;
+        textDocumentProxy.insertText(toInsert);
+      }
     }
 
     // 글자 입력 후 일회용 시프트 해제 (심볼 모드가 아닐 때만)
@@ -54,39 +53,37 @@ extension KeyboardViewController {
       jamo = hangul;
     } else {
       flushHangul();
-      isSuppressingSelectionChange = true;
-      textDocumentProxy.insertText(String(ch));
-      isSuppressingSelectionChange = false;
+      performWithoutSelectionChange {
+        textDocumentProxy.insertText(String(ch));
+      }
       return;
     }
 
     // selectionDidChange 억제: 내부 조작 중 automata 리셋 방지
-    isSuppressingSelectionChange = true;
-    
-    // 기존 조합 중인 글자 삭제 (밑줄 없는 효과를 위해)
-    for _ in 0..<activeLength {
-      textDocumentProxy.deleteBackward();
-    }
+    performWithoutSelectionChange {
+      // 기존 조합 중인 글자 삭제 (밑줄 없는 효과를 위해)
+      for _ in 0..<activeLength {
+        textDocumentProxy.deleteBackward();
+      }
 
-    automata.input(jamo);
-    let combined = automata.compose();
-    
-    // 새 조합 삽입
-    if !combined.isEmpty {
-      textDocumentProxy.insertText(combined);
-      activeLength = combined.count;
-      composingChar = combined.last;
-    } else {
-      activeLength = 0;
-      composingChar = nil;
+      automata.input(jamo);
+      let combined = automata.compose();
+      
+      // 새 조합 삽입
+      if !combined.isEmpty {
+        textDocumentProxy.insertText(combined);
+        activeLength = combined.count;
+        composingChar = combined.last;
+      } else {
+        activeLength = 0;
+        composingChar = nil;
+      }
     }
-    
-    isSuppressingSelectionChange = false;
   }
 
   func flushHangul() {
-    guard isHangul else { return; }
     // 이미 insertText로 들어가 있으므로 상태만 초기화
+    // isHangul guard 제거: 어떤 모드에서든 안전하게 상태를 초기화할 수 있도록 함
     automata.reset();
     activeLength = 0;
     composingChar = nil;
@@ -95,7 +92,6 @@ extension KeyboardViewController {
   // MARK: - 기능 키 핸들링
   
   @objc func shiftTapped() {
-    triggerHaptic()
     
     if isSymbol {
       // 특수 기호 모드: 단순히 페이지 토글 (1/2 <-> 2/2)
@@ -132,8 +128,7 @@ extension KeyboardViewController {
   
   @objc func handleShiftLongPress(_ gesture: UILongPressGestureRecognizer) {
     if gesture.state == .began {
-      triggerHaptic()
-      if !isSymbol {
+        if !isSymbol {
         isShiftLocked = true
         isShifted = true
         rebuildKeyboard()
@@ -156,7 +151,6 @@ extension KeyboardViewController {
 
   @objc func symbolTapped() {
     flushHangul();
-    triggerHaptic();
     isSymbol.toggle();
     isCustom = false; // 이모지 모드 해제
     // 기호 모드 진입 시 시프트 상태 초기화 (1/2 페이지부터 시작)
@@ -166,7 +160,9 @@ extension KeyboardViewController {
 
   @objc func enterTapped() {
     flushHangul();
-    textDocumentProxy.insertText("\n");
+    performWithoutSelectionChange {
+      textDocumentProxy.insertText("\n");
+    }
   }
 
   // MARK: - 커서 이동 및 가속
@@ -175,8 +171,6 @@ extension KeyboardViewController {
     guard let id = sender.accessibilityIdentifier else { return }
     // 한 번 클릭 동작 수행
     flushHangul();
-    triggerHaptic();
-    activeLength = 0;
     handleCursorMove(id: id);
     
     // 왼쪽/오른쪽 버튼인 경우에만 가속 타이머 작동
@@ -238,7 +232,6 @@ extension KeyboardViewController {
     cursorTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
       guard let self = self else { return }
       self.handleCursorMove(id: id)
-      self.triggerHaptic()
       self.cursorRepeatCount += 1
       
       if self.cursorRepeatCount == 10 {
@@ -251,7 +244,6 @@ extension KeyboardViewController {
 
   @objc func customTapped() {
     flushHangul();
-    triggerHaptic();
     isCustom.toggle();
     isSymbol = false;
     rebuildKeyboard();
@@ -264,9 +256,9 @@ extension KeyboardViewController {
   @objc func customKeyTapped(_ sender: UIButton) {
     if let custom = sender.accessibilityLabel {
       flushHangul();
-      isSuppressingSelectionChange = true;
-      textDocumentProxy.insertText(custom);
-      isSuppressingSelectionChange = false;
+      performWithoutSelectionChange {
+        textDocumentProxy.insertText(custom);
+      }
     }
   }
 
@@ -293,8 +285,7 @@ extension KeyboardViewController {
       if abs(accumulatedPanX) >= threshold {
         let direction = accumulatedPanX > 0 ? 1 : -1;
         textDocumentProxy.adjustTextPosition(byCharacterOffset: direction);
-        triggerHaptic();
-        
+            
         // 이동한 만큼의 거리를 뺀 나머지만 남겨서 부드러운 연속 이동 가능케 함
         accumulatedPanX -= CGFloat(direction) * threshold;
       }
@@ -330,45 +321,40 @@ extension KeyboardViewController {
   }
 
   private func handleBackspace() {
-    isSuppressingSelectionChange = true;
-    
-    if isHangul && !isSymbol {
-      // 한글 조합 중일 때 (스택에 자모가 남아있음)
-      if !automata.jamoStack.isEmpty {
-        // 기존 조합 글자 삭제
-        for _ in 0..<activeLength {
-          textDocumentProxy.deleteBackward();
-        }
-        
-        automata.backspace();
-        triggerHaptic();
-        
-        let combined = automata.compose();
-        if !combined.isEmpty {
-          textDocumentProxy.insertText(combined);
-          activeLength = combined.count;
-          composingChar = combined.last;
+    performWithoutSelectionChange {
+      if isHangul && !isSymbol {
+        // 한글 조합 중일 때 (스택에 자모가 남아있음)
+        if !automata.jamoStack.isEmpty {
+          // 기존 조합 글자 삭제
+          for _ in 0..<activeLength {
+            textDocumentProxy.deleteBackward();
+          }
+          
+          automata.backspace();
+              
+          let combined = automata.compose();
+          if !combined.isEmpty {
+            textDocumentProxy.insertText(combined);
+            activeLength = combined.count;
+            composingChar = combined.last;
+          } else {
+            activeLength = 0;
+            composingChar = nil;
+          }
         } else {
-          activeLength = 0;
-          composingChar = nil;
+          // 조합 중이 아닐 때 앞 글자(음절) 한 자 삭제
+          if textDocumentProxy.hasText {
+            textDocumentProxy.deleteBackward();
+            activeLength = 0;
+          }
         }
       } else {
-        // 조합 중이 아닐 때 앞 글자(음절) 한 자 삭제
+        // 영문 또는 기호 모드
         if textDocumentProxy.hasText {
-          triggerHaptic();
           textDocumentProxy.deleteBackward();
-          activeLength = 0;
         }
       }
-    } else {
-      // 영문 또는 기호 모드
-      if textDocumentProxy.hasText {
-        textDocumentProxy.deleteBackward();
-        triggerHaptic();
-      }
     }
-    
-    isSuppressingSelectionChange = false;
   }
 
   private func startContinuousBackspace(interval: TimeInterval = 0.1) {
@@ -403,11 +389,10 @@ extension KeyboardViewController: KeyButtonDelegate {
     
     // 스페이스바 탭 입력 처리 (드래그 중이 아니었을 때만)
     if key == " " && !isSpaceDragging {
-      triggerHaptic();
       flushHangul();
-      isSuppressingSelectionChange = true;
-      textDocumentProxy.insertText(" ");
-      isSuppressingSelectionChange = false;
+      performWithoutSelectionChange {
+        textDocumentProxy.insertText(" ");
+      }
     }
     
     if key == "backspace" {
@@ -425,19 +410,13 @@ extension KeyboardViewController: KeyButtonDelegate {
 
 extension KeyboardViewController: CustomKeyboardViewDelegate {
   func customKeyboardView(_ view: CustomKeyboardView, didSelectCustom custom: String) {
-    triggerHaptic();
     flushHangul();
-    isSuppressingSelectionChange = true;
-    textDocumentProxy.insertText(custom);
-    isSuppressingSelectionChange = false;
+    performWithoutSelectionChange {
+      textDocumentProxy.insertText(custom);
+    }
   }
   
   func customKeyboardViewDidTapBackspace(_ view: CustomKeyboardView) {
-    triggerHaptic()
     handleBackspace()
-  }
-  
-  func customKeyboardViewDidRequestHaptic(_ view: CustomKeyboardView) {
-    triggerHaptic()
-  }
-}
+  }}
+
