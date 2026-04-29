@@ -6,7 +6,7 @@ struct ContentView: View {
     
     var body: some View {
         ZStack {
-            // 1. Luxury Obsidian Background
+            // 1. 럭셔리 옵시디언 배경
             Color.black.ignoresSafeArea()
             
             LinearGradient(
@@ -15,7 +15,7 @@ struct ContentView: View {
                 endPoint: .bottom
             ).ignoresSafeArea()
             
-            // Subtle depth highlight
+            // 미묘한 입체감 하이라이트
             RadialGradient(
                 gradient: Gradient(colors: [Color.white.opacity(0.05), Color.clear]),
                 center: .topLeading,
@@ -29,7 +29,7 @@ struct ContentView: View {
                     HeaderView()
                         .padding(.top, 40)
                     
-                    // MARK: - Center Aligned Content (Max Width 640)
+                    // MARK: - 중앙 정렬 콘텐츠 (최대 너비 640)
                     VStack(spacing: 30) {
                         // MARK: - Test Zone
                         VStack(alignment: .leading, spacing: 20) {
@@ -53,7 +53,7 @@ struct ContentView: View {
                                 )
                                 .foregroundColor(.white)
                                 .focused($isFocused)
-                                .tint(.white) // Silver cursor
+                                .tint(.white) // 실버 커서
                         }
                         .padding(25)
                         .background(GlassCard())
@@ -61,7 +61,7 @@ struct ContentView: View {
                     .frame(maxWidth: 640)
                     .padding(.horizontal)
                     
-                    // MARK: - Setup Guide (Full Width)
+                    // MARK: - 설정 가이드 (전체 너비)
                     VStack(alignment: .center) {
                         VStack(alignment: .leading, spacing: 40) {
                             Text("사용 시작하기")
@@ -133,12 +133,12 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Subviews
+// MARK: - 하위 뷰
 
 struct HeaderView: View {
     var body: some View {
         VStack(spacing: 25) {
-            // New Luxury Obsidian Logo
+            // 새로운 럭셔리 옵시디언 로고
             Image("Logo")
                 .resizable()
                 .scaledToFit()

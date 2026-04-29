@@ -1,8 +1,3 @@
-//
-//  KeyButton.swift
-//  custom-keyboard
-//
-
 import UIKit
 
 protocol KeyButtonDelegate: AnyObject {

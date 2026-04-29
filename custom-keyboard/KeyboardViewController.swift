@@ -1,10 +1,3 @@
-//
-//  KeyboardViewController.swift
-//  custom-keyboard
-//
-//  Created by 이우진 on 4/8/26.
-//
-
 import UIKit
 import AudioToolbox
 import os.log
@@ -86,7 +79,7 @@ class KeyboardViewController: UIInputViewController {
   }
 
 
-  // MARK: - 색상 테마 (캐시됨 — computed property 제거로 UIColor 재생성 방지)
+  // MARK: - 색상 테마 (캐시됨)
   // 매번 새 UIColor를 만드는 대신, 테마 변경 시에만 갱신
   private(set) var keyGlassColor: UIColor = .clear;
   private(set) var specialGlassColor: UIColor = .clear;
@@ -117,7 +110,6 @@ class KeyboardViewController: UIInputViewController {
   }
 
   // MARK: - Lifecycle
-  // MARK: - Lifecycle
 
   override init(nibName nibNameOrNil: String?, bundle nibBundleOrNil: Bundle?) {
     super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
@@ -132,7 +124,7 @@ class KeyboardViewController: UIInputViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
     
-    // 테마 색상 초기화 (이후 computed property 접근 대신 캐시된 값 사용)
+    // 테마 색상 초기화
     refreshThemeColors()
     
     // 시스템에 키보드 높이를 명시적으로 알려주어 레이아웃 점프 방지
@@ -154,21 +146,7 @@ class KeyboardViewController: UIInputViewController {
     rebuildKeyboard()
   }
 
-  // MARK: - 레이아웃 점프 방지
-  // 시스템의 키보드 등장 애니메이션 중 내부 제약 조건 해석으로 인한
-  // 암묵적 레이어 애니메이션을 완전히 차단합니다.
-  override func viewWillLayoutSubviews() {
-    super.viewWillLayoutSubviews()
-    os_log("📐 viewWillLayoutSubviews - height: %f", log: logger, type: .default, self.view.frame.height)
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-  }
-
-  override func viewDidLayoutSubviews() {
-    super.viewDidLayoutSubviews()
-    os_log("📐 viewDidLayoutSubviews - height: %f", log: logger, type: .default, self.view.frame.height)
-    CATransaction.commit()
-  }
+  // MARK: - 레이아웃 설정
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
@@ -179,7 +157,6 @@ class KeyboardViewController: UIInputViewController {
       refreshThemeColors()
       updateKeyLabels()
       updateAppearance()
-      view.layoutIfNeeded()
     }
   }
 

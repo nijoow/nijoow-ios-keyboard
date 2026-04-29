@@ -28,23 +28,18 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
     
     override func layoutSubviews() {
         super.layoutSubviews()
-        // [최적화] 여기서 reloadData()나 invalidateLayout()을 호출하면 
-        // 팝업이 뜰 때마다 수천 개의 셀을 다시 그리게 되어 메모리 크래시가 발생합니다.
-        // 오토레이아웃으로 제약 조건만 업데이트되도록 합니다.
     }
     
     private func setupView() {
         if isDarkMode {
-            // [옵시디언 블랙] 더욱 깊고 럭셔리한 다크 배경
             self.backgroundColor = UIColor(red: 0.03, green: 0.03, blue: 0.03, alpha: 0.96)
         } else {
-            // [프로스트 화이트] 밝고 깨끗한 라이트 배경
             self.backgroundColor = UIColor(red: 0.88, green: 0.89, blue: 0.92, alpha: 0.96)
         }
         self.layer.cornerRadius = 12
         self.clipsToBounds = true
         
-        // 1. Setup dock container (카테고리 바)
+        // 1. 독 컨테이너 설정 (카테고리 바)
         let dockContainer = UIView()
         dockContainer.translatesAutoresizingMaskIntoConstraints = false
         addSubview(dockContainer)
@@ -52,17 +47,15 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         dockStackView = UIStackView()
         dockStackView.axis = .horizontal
         dockStackView.distribution = .fill
-        dockStackView.spacing = 18 // [개선] 버튼 사이의 간격을 넓혀 터치 오인식 방지
+        dockStackView.spacing = 18 
         dockStackView.translatesAutoresizingMaskIntoConstraints = false
         
-        // [개선] 스크롤 가능한 카테고리 바 구현
         dockScrollView = UIScrollView()
         dockScrollView.showsHorizontalScrollIndicator = false
         dockScrollView.translatesAutoresizingMaskIntoConstraints = false
         dockContainer.addSubview(dockScrollView)
         dockScrollView.addSubview(dockStackView)
         
-        // [옵시디언 블랙] 스모키 유리 배경
         let dockBg = UIView()
         dockBg.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.08) : UIColor(white: 0.0, alpha: 0.08)
         dockBg.layer.cornerRadius = 10
@@ -82,7 +75,7 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         
         setupDockButtons()
         
-        // 2. Setup CollectionView
+        // 2. 컬렉션 뷰 설정
         let layout = UICollectionViewFlowLayout()
         layout.scrollDirection = .vertical
         layout.minimumInteritemSpacing = 0
@@ -137,13 +130,10 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
             collectionView.bottomAnchor.constraint(equalTo: dockContainer.topAnchor, constant: -5)
         ])
         
-        // [최적화] 초기화 시점에 데이터를 로드합니다.
         collectionView.reloadData()
     }
     
-    /// [고도화] 최근 사용 탭을 포함하여 도크 버튼들을 구성합니다.
     private func setupDockButtons() {
-        // 기존 뷰 제거
         dockStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
         
         for (index, category) in provider.categories.enumerated() {
@@ -198,15 +188,12 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
     private func updateVariationSelection(at pointInView: CGPoint) {
         guard let popup = currentPopup else { return }
         
-        // [수정] 팝업이 이제 superview(최상위 뷰)에 있으므로, 
-        // 현재 뷰(self)의 좌표를 팝업의 좌표계로 정확히 변환해야 합니다.
         let localPoint = convert(pointInView, to: popup)
         
         let stackView = popup.subviews.compactMap { $0 as? UIStackView }.first
         let itemCount = stackView?.arrangedSubviews.count ?? 1
         let itemWidth = popup.bounds.width / CGFloat(max(1, itemCount))
         
-        // [안전 장치] 레이아웃이 미처 잡히지 않아 itemWidth가 0인 경우 크래시 방지
         guard itemWidth > 0 else { return }
         
         var index = Int(localPoint.x / itemWidth)
@@ -228,7 +215,6 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
     private func showVariationPopup(for custom: String, at cell: UICollectionViewCell) {
         hideVariationPopup()
         
-        // [수정] 팝업이 키보드 영역 밖으로(상단으로) 나갈 수 있도록 최상위 뷰에 추가합니다.
         guard let superview = self.superview else { return }
         
         let variations = EmojiProvider.shared.getVariations(for: custom)
@@ -236,18 +222,15 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         popup.translatesAutoresizingMaskIntoConstraints = false
         superview.addSubview(popup)
         
-        // 셀의 위치를 최상위 뷰 기준으로 변환합니다.
         let cellFrameInSuperview = cell.convert(cell.bounds, to: superview)
         let popupWidth = CGFloat(variations.count * 46 + 16)
         
-        // 제약 조건 설정 (Edge Safety 적용)
         let centerXConstraint = popup.centerXAnchor.constraint(equalTo: superview.leadingAnchor, constant: cellFrameInSuperview.midX)
-        centerXConstraint.priority = .defaultHigh // 중앙 정렬보다 화면 이탈 방지를 더 우선시함
+        centerXConstraint.priority = .defaultHigh 
         
         NSLayoutConstraint.activate([
             popup.bottomAnchor.constraint(equalTo: superview.topAnchor, constant: cellFrameInSuperview.minY - 12),
             centerXConstraint,
-            // [Edge Safety] 화면 좌우 끝에서 8pt 이상의 여백을 강제함
             popup.leadingAnchor.constraint(greaterThanOrEqualTo: superview.leadingAnchor, constant: 8),
             popup.trailingAnchor.constraint(lessThanOrEqualTo: superview.trailingAnchor, constant: -8),
             popup.widthAnchor.constraint(equalToConstant: popupWidth),
@@ -263,14 +246,10 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         
         let headerHeight: CGFloat = 30
         
-        // 해당 섹션에 아이템이 있는지 확인
         if collectionView.numberOfSections > section && collectionView.numberOfItems(inSection: section) > 0 {
-            // 아이템의 레이아웃 성질을 가져옴
             if let attributes = collectionView.layoutAttributesForItem(at: indexPath) {
-                // 아이템 위치에서 헤더 높이만큼 뺀 지점이 실제 섹션의 시작점
                 var targetY = attributes.frame.origin.y - headerHeight
                 
-                // 컨텐츠 범위를 벗어나지 않도록 제한
                 let maxOffsetY = collectionView.contentSize.height - collectionView.bounds.height
                 if targetY > maxOffsetY { targetY = maxOffsetY }
                 if targetY < 0 { targetY = 0 }
@@ -305,9 +284,6 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "CustomHeader", for: indexPath) as! CustomHeaderView
         header.label.text = provider.categories[indexPath.section].title
         header.label.textColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.9) : .black
-        
-        // [메모리 최적화] UIVisualEffectView(블러) 제거 — 단순 반투명 배경으로 대체
-        // 블러 뷰는 GPU 메모리를 매우 높게 소비하여 키보드 확장에서 Code 9 크래시의 주요 원인
         header.backgroundColor = isDarkMode
             ? UIColor(white: 0.15, alpha: 0.85)
             : UIColor(white: 0.95, alpha: 0.85)
@@ -320,7 +296,7 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
         let referenceWidth = collectionView.bounds.width > 0 ? collectionView.bounds.width : self.bounds.width
         let width = referenceWidth / 8
-        return CGSize(width: width, height: width) // 정사각형 유지
+        return CGSize(width: width, height: width) 
     }
     
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, referenceSizeForHeaderInSection section: Int) -> CGSize {
@@ -334,19 +310,16 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
     }
     
     private func selectCustom(_ custom: String) {
-        // [수정] 최근 이용 기록 업데이트 및 전체 새로고침
         let hadRecentBefore = !provider.recentEmojis.isEmpty
         provider.addRecentEmoji(custom)
         let hasRecentNow = !provider.recentEmojis.isEmpty
         
         delegate?.customKeyboardView(self, didSelectCustom: custom)
         
-        // 최근 사용 탭이 처음 생기거나 목록이 바뀌면 UI 업데이트
         if !hadRecentBefore && hasRecentNow {
             setupDockButtons()
             collectionView.reloadData()
         } else {
-            // 이미 최근 사용 탭이 있으면 해당 섹션만 새로고침 (애니메이션 없이 조용히)
             UIView.performWithoutAnimation {
                 collectionView.reloadSections(IndexSet(integer: 0))
             }
@@ -387,10 +360,8 @@ class CustomHeaderView: UICollectionReusableView {
 
 extension CustomKeyboardView: CustomVariationPopupDelegate {
     func customVariationPopup(_ popup: CustomVariationPopup, didSelectCustom custom: String) {
-        // 선택된 가변 이모지 입력 및 최근 사용 업데이트
         selectCustom(custom)
         
-        // 팝업 제거
         popup.removeFromSuperview()
         currentPopup = nil
     }

@@ -1,10 +1,3 @@
-//
-//  HangulAutomata.swift
-//  custom-keyboard
-//
-//  Created by 이우진 on 4/8/26.
-//
-
 import Foundation
 
 // MARK: - 한글 자모 정의

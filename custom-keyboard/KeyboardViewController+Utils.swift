@@ -1,16 +1,10 @@
-//
-//  KeyboardViewController+Utils.swift
-//  custom-keyboard
-//
-
 import UIKit
 
 extension KeyboardViewController {
   
   // MARK: - 팝업 및 변체 입력 (Long Press)
 
-  // MARK: - 팝업 및 변체 입력 (Long Press)
-  
+
   @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
     guard let btn = gesture.view as? KeyButton, let firstChar = btn.keyValue.first else { return }
     let char = letterLabel(for: firstChar)

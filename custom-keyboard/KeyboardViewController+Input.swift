@@ -1,8 +1,3 @@
-//
-//  KeyboardViewController+Input.swift
-//  custom-keyboard
-//
-
 import UIKit
 
 extension KeyboardViewController {

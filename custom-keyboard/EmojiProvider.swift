@@ -21,18 +21,14 @@ struct EmojiCategory: Codable {
 class EmojiProvider {
   static let shared = EmojiProvider()
   
-  // 기본 카테고리 데이터 (JSON에서 로드된 것) — 지연 로딩
   private var baseCategories: [EmojiCategory] = []
   
-  // 최근 사용 이모지 목록
   private(set) var recentEmojis: [String] = []
   private let recentKey = "nijoow.custom.keyboard.recentEmojis"
   private let maxRecentCount = 40
   
-  // 로드 상태 추적
   private var isLoaded = false
   
-  // UI에 제공할 최종 카테고리 목록 (최근 사용 포함) - 메모리 최적화를 위해 캐싱 처리
   private var _cachedCategories: [EmojiCategory] = [];
   var categories: [EmojiCategory] {
     loadIfNeeded()
@@ -58,13 +54,11 @@ class EmojiProvider {
   // MARK: - 초기화 (최근 사용 기록만 로드)
   
   private init() {
-    // 최근 사용 기록만 로드 (가벼움 — UserDefaults에서 문자열 배열 읽기)
     loadRecents()
   }
   
   // MARK: - 지연 로딩 (이모지 패널이 열릴 때만)
   
-  /// 이모지 JSON 데이터를 로드합니다. 이모지 패널이 열릴 때 자동 호출됩니다.
   func loadIfNeeded() {
     guard !isLoaded else { return }
     isLoaded = true
@@ -99,11 +93,9 @@ class EmojiProvider {
       self.emojiToVariations = variationsMap
     }
     
-    // 캐시 갱신
     updateCategoriesCache()
   }
   
-  /// 메모리 부족 시 이모지 데이터를 해제합니다. 다음 접근 시 자동으로 다시 로드됩니다.
   func unloadData() {
     baseCategories = []
     emojiToVariations = [:]
@@ -111,18 +103,15 @@ class EmojiProvider {
     isLoaded = false
   }
 
-  // MARK: - Recent Emojis Management
+  // MARK: - 최근 사용 이모지 관리
   
   func addRecentEmoji(_ custom: String) {
-    // 기존 목록에서 중복 제거
     if let index = recentEmojis.firstIndex(of: custom) {
       recentEmojis.remove(at: index)
     }
     
-    // 맨 앞에 추가
     recentEmojis.insert(custom, at: 0)
     
-    // 개수 제한
     if recentEmojis.count > maxRecentCount {
       recentEmojis = Array(recentEmojis.prefix(maxRecentCount))
     }
@@ -141,7 +130,7 @@ class EmojiProvider {
     UserDefaults.standard.set(recentEmojis, forKey: recentKey)
   }
 
-  // MARK: - Variation Logic
+  // MARK: - 변형(Skin Tone) 로직
   
   func supportsSkinTone(_ custom: String) -> Bool {
     return emojiToVariations[custom] != nil

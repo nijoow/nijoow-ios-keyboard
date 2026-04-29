@@ -1,8 +1,3 @@
-//
-//  KeyboardViewController+UI.swift
-//  custom-keyboard
-//
-
 import UIKit
 
 extension KeyboardViewController {
@@ -18,7 +13,7 @@ extension KeyboardViewController {
     allKeyButtons.removeAll()
     shiftButton = nil
     
-    // 1. 바톰 행 (view의 bottom에 핀)
+    // 1. 바톰 행 (하단 고정)
     let botRow = makeBottomRow()
     botRow.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(botRow)
@@ -51,7 +46,7 @@ extension KeyboardViewController {
     utilRow.setContentHuggingPriority(.required, for: .vertical)
     utilRow.setContentCompressionResistancePriority(.required, for: .vertical)
 
-    // 4. view.topAnchor에 낮은 우선순위 힌트 추가
+    // 4. 상단 힌트 제약 조건 추가
     let hintConstraint = utilRow.topAnchor.constraint(equalTo: view.topAnchor, constant: 6)
     hintConstraint.priority = UILayoutPriority(250) // 높이 충돌 방지를 위해 Low 설정
     hintConstraint.isActive = true
@@ -91,7 +86,7 @@ extension KeyboardViewController {
     view.addSubview(customView)
     self.customKeyboardView = customView
     
-    // [단방향 핀 - 상향] 아래에서만 핀 + 높이 고정 (view.top 참조 없음)
+    // 아래에서 위로 핀 고정 (높이 고정)
     let hc = customView.heightAnchor.constraint(equalToConstant: 179)
     hc.priority = .required
     NSLayoutConstraint.activate([
@@ -117,8 +112,8 @@ extension KeyboardViewController {
     view.addSubview(contentStack)
     self.mainContentStack = contentStack
 
-    // [단방향 핀 - 상향] 아래에서만 핀 + 높이 절대 고정
-    // view 높이가 896→277로 애니메이션되더라도 contentStack은 항상 바닥 기준
+    // 아래에서 위로 핀 고정 (높이 고정)
+    // view 높이가 변하더라도 콘텐츠는 항상 바닥 기준을 유지함
     let stackHc = contentStack.heightAnchor.constraint(equalToConstant: 179)
     stackHc.priority = .required
     NSLayoutConstraint.activate([
@@ -266,8 +261,6 @@ extension KeyboardViewController {
     ])
     return container
   }
-
-  // 레거시 makeCustomPanel 제거됨 (CustomKeyboardView로 대체)
 
   // MARK: - 버튼 팩토리
   

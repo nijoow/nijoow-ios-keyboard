@@ -1,10 +1,3 @@
-//
-//  KeyboardConstants.swift
-//  custom-keyboard
-//
-//  Created by antigravity on 4/9/26.
-//
-
 import UIKit
 
 struct KeyboardConstants {
@@ -56,7 +49,7 @@ struct KeyboardConstants {
   static let BOTTOM_ROW_H: CGFloat = 38
   static let CORNER_RADIUS: CGFloat = 12
   
-  // 전체 높이 고정용 (여백 포함, Safe Area 제외)
-  // 6(Top) + 34(Util) + 7(Gap) + 179(Main) + 7(Gap) + 38(Bottom) + 6(Padding) = 277
+  // 전체 높이 고정용 (여백 포함, 안전 영역 제외)
+  // 상단(6) + 유틸(34) + 간격(7) + 메인(179) + 간격(7) + 바닥(38) + 패딩(6) = 277
   static let TOTAL_CONTENT_H: CGFloat = 277
 }
