@@ -26,7 +26,24 @@ class KeyboardViewController: UIInputViewController {
   var bottomRow: UIView?
   var mainContentStack: UIStackView?
   var customKeyboardView: CustomKeyboardView?
-  var heightConstraint: NSLayoutConstraint?
+
+  // 키보드 전체 높이를 확정하는 제약 (priority 999). 점프 방지의 핵심.
+  var keyboardHeightConstraint: NSLayoutConstraint?
+
+  /// 레이아웃 상수로부터 역산한 키보드 전체 높이.
+  /// = 상단여백 + 유틸행 + 간격 + (숫자행 + 키행*3 + 행간격*3) + 간격 + 바텀행 + 하단여백
+  var desiredKeyboardHeight: CGFloat {
+    let insetTop: CGFloat = 6
+    let insetBottom: CGFloat = 6
+    let utilGap: CGFloat = 7
+    let bottomGap: CGFloat = 7
+    let rowSpacing: CGFloat = 5
+    let contentStack = KeyboardConstants.NUMBER_ROW_H
+      + KeyboardConstants.MAIN_KEY_H * 3
+      + rowSpacing * 3
+    return insetTop + KeyboardConstants.UTIL_ROW_H + utilGap
+      + contentStack + bottomGap + KeyboardConstants.BOTTOM_ROW_H + insetBottom
+  }
 
   // MARK: - 팝업 상태 (Long Press)
   var popupView: UIView?
@@ -123,41 +140,61 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-    
+
     // 테마 색상 초기화
     refreshThemeColors()
-    
-    // 시스템에 키보드 높이를 명시적으로 알려주어 레이아웃 점프 방지
-    // Safe Area 패딩은 시스템이 이 높이 바깥에 자동으로 추가함
-    let hc = view.heightAnchor.constraint(equalToConstant: KeyboardConstants.TOTAL_CONTENT_H)
-    hc.priority = UILayoutPriority(999)
-    hc.isActive = true
-    heightConstraint = hc
-    
+
     buildKeyboard()
 
     if #available(iOS 17.0, *) {
       registerForTraitChanges([UITraitUserInterfaceStyle.self], target: self, action: #selector(themeDidChange))
     }
   }
-  
+
   @objc private func themeDidChange() {
     refreshThemeColors()
     rebuildKeyboard()
   }
 
   // MARK: - 레이아웃 설정
+  //
+  // 높이 점프 방지: 키보드 뷰에 확정 높이 제약(desiredKeyboardHeight)을 viewWillAppear에서 건다.
+  // 시스템은 등장 애니메이션 시작 시점에 inputView 높이를 읽는데, 그 전(viewDidLoad)에 걸면
+  // 시스템이 잠정 높이로 애니메이션을 시작한 뒤 보정하므로 높이가 튄다(896→505→정착).
+  // 등장 직전(viewWillAppear)에 걸어야 애니메이션이 처음부터 정확한 높이로 진행된다.
+  // 콘텐츠는 view의 top·bottom에 핀 고정되어 이 확정 높이를 행 비율대로 채운다.
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    os_log("🚀 viewWillAppear", log: logger, type: .default)
+    os_log("🚀 viewWillAppear w=%.1f h=%.1f safeBottom=%.1f", log: logger, type: .default,
+           view.bounds.width, view.bounds.height, view.safeAreaInsets.bottom)
     resetKeyboardState()
+    // 등장 애니메이션 시작 전에 키보드 높이 확정 (점프 방지의 핵심)
+    installKeyboardHeightConstraint()
     // 키보드 등장 애니메이션 중 레이아웃 재계산 방지
     UIView.performWithoutAnimation {
       refreshThemeColors()
       updateKeyLabels()
       updateAppearance()
+      view.layoutIfNeeded()
     }
+  }
+
+  // MARK: - 점프 진단 로그 (원인 파악 후 제거 예정)
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    let contentH = mainContentStack?.bounds.height ?? -1
+    os_log("📐 didLayoutSubviews view=%.1fx%.1f safeBottom=%.1f mainStackH=%.1f",
+           log: logger, type: .default,
+           view.bounds.width, view.bounds.height, view.safeAreaInsets.bottom, contentH)
+  }
+
+  override func viewSafeAreaInsetsDidChange() {
+    super.viewSafeAreaInsetsDidChange()
+    os_log("⚠️ safeAreaInsetsDidChange bottom=%.1f top=%.1f",
+           log: logger, type: .default,
+           view.safeAreaInsets.bottom, view.safeAreaInsets.top)
   }
 
   override func viewWillDisappear(_ animated: Bool) {
@@ -206,6 +243,8 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewDidAppear(_ animated: Bool) {
     super.viewDidAppear(animated);
+    os_log("✅ viewDidAppear w=%.1f h=%.1f safeBottom=%.1f", log: logger, type: .default,
+           view.bounds.width, view.bounds.height, view.safeAreaInsets.bottom)
     // viewDidAppear에서 추가 rebuildKeyboard 호출 불필요 (viewWillAppear에서 처리됨)
   }
 

@@ -46,13 +46,29 @@ extension KeyboardViewController {
     utilRow.setContentHuggingPriority(.required, for: .vertical)
     utilRow.setContentCompressionResistancePriority(.required, for: .vertical)
 
-    // 4. 상단 힌트 제약 조건 추가
-    let hintConstraint = utilRow.topAnchor.constraint(equalTo: view.topAnchor, constant: 6)
-    hintConstraint.priority = UILayoutPriority(250) // 높이 충돌 방지를 위해 Low 설정
-    hintConstraint.isActive = true
+    // 4. 유틸리티 행 상단을 view 상단에 고정 (required)
+    //    이 제약으로 세로 레이아웃 체인이 view의 top~bottom까지 모두 연결되어,
+    //    확정된 키보드 높이에 맞춰 메인 콘텐츠 스택이 행 비율대로 채워진다.
+    utilRow.topAnchor.constraint(equalTo: view.topAnchor, constant: 6).isActive = true
 
     // 5. 시작 가시성 적용
     updatePanelVisibility()
+  }
+
+  /// 키보드 뷰에 확정 높이 제약을 설치/갱신한다.
+  /// viewWillAppear에서 매 등장마다 호출해야 한다. viewDidLoad 시점에 걸면 시스템이
+  /// 등장 애니메이션을 '잠정 높이'로 시작한 뒤 보정하므로 높이가 튄다. 등장 직전에
+  /// 걸어야 시스템이 애니메이션 시작 전에 정확한 높이를 읽는다.
+  func installKeyboardHeightConstraint() {
+    if let c = keyboardHeightConstraint {
+      c.constant = desiredKeyboardHeight
+      c.isActive = true
+    } else {
+      let c = view.heightAnchor.constraint(equalToConstant: desiredKeyboardHeight)
+      c.priority = .required
+      c.isActive = true
+      keyboardHeightConstraint = c
+    }
   }
 
   private func updatePanelVisibility() {
@@ -85,24 +101,22 @@ extension KeyboardViewController {
     customView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(customView)
     self.customKeyboardView = customView
-    
-    // 아래에서 위로 핀 고정 (높이 고정)
-    let hc = customView.heightAnchor.constraint(equalToConstant: 179)
-    hc.priority = .required
-    NSLayoutConstraint.activate([
+
+    // 메인 콘텐츠 스택과 동일하게 유틸 행~바텀 행 사이를 가득 채운다 (높이 고정 안 함).
+    var constraints: [NSLayoutConstraint] = [
       customView.bottomAnchor.constraint(equalTo: botRow.topAnchor, constant: -7),
-      hc,
       customView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
       customView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6)
-    ])
-    
-    customView.setContentHuggingPriority(.required, for: .vertical)
-    customView.setContentCompressionResistancePriority(.required, for: .vertical)
+    ]
+    if let utilRow = utilityRow {
+      constraints.append(customView.topAnchor.constraint(equalTo: utilRow.bottomAnchor, constant: 7))
+    }
+    NSLayoutConstraint.activate(constraints)
   }
 
   private func setupMainContentStack(above botRow: UIView) -> UIStackView {
     if let existing = mainContentStack { return existing }
-    
+
     let contentStack = ExpandedHitStackView()
     contentStack.axis = .vertical
     contentStack.distribution = .fill
@@ -112,54 +126,49 @@ extension KeyboardViewController {
     view.addSubview(contentStack)
     self.mainContentStack = contentStack
 
-    // 아래에서 위로 핀 고정 (높이 고정)
-    // view 높이가 변하더라도 콘텐츠는 항상 바닥 기준을 유지함
-    let stackHc = contentStack.heightAnchor.constraint(equalToConstant: 179)
-    stackHc.priority = .required
+    // 높이를 고정하지 않는다. top은 유틸 행 아래(buildKeyboard의 utilRow.bottom 제약),
+    // bottom은 바텀 행 위에 핀 고정되므로, 키보드 전체 높이에서 남는 공간을 이 스택이 흡수한다.
     NSLayoutConstraint.activate([
       contentStack.bottomAnchor.constraint(equalTo: botRow.topAnchor, constant: -7),
-      stackHc,
       contentStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
       contentStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6)
     ])
 
     let numRow = makeNumberRow()
-    numRow.heightAnchor.constraint(equalToConstant: KeyboardConstants.NUMBER_ROW_H).isActive = true
     contentStack.addArrangedSubview(numRow)
 
+    let keyRows: [UIView]
     if isSymbol {
-      let rows = isShifted ? 
+      let rows = isShifted ?
         [KeyboardConstants.SYM_ROW1_SHIFTED, KeyboardConstants.SYM_ROW2_SHIFTED, KeyboardConstants.SYM_ROW3_SHIFTED] :
         [KeyboardConstants.SYM_ROW1_NORMAL, KeyboardConstants.SYM_ROW2_NORMAL, KeyboardConstants.SYM_ROW3_NORMAL]
-      
+
       let v1 = makeEqualRow(keys: rows[0], rowOffset: 400)
       let v2 = makeLetterRowStack(rows[1], rowOffset: 500) // 9키 대응 로직 사용
       let v3 = makeShiftRow(middleKeys: rows[2], keyValues: rows[2], rowOffset: 600) // 7키 대응 로직 사용
-      
-      [v1, v2, v3].forEach {
-        $0.heightAnchor.constraint(equalToConstant: KeyboardConstants.MAIN_KEY_H).isActive = true
-        contentStack.addArrangedSubview($0)
-      }
-      
-      [numRow, v1, v2, v3].forEach { row in
-        row.setContentHuggingPriority(.required, for: .vertical)
-        row.setContentCompressionResistancePriority(.required, for: .vertical)
-      }
+      keyRows = [v1, v2, v3]
     } else {
-      let v1 = makeLetterRow1()
-      let v2 = makeLetterRow2()
-      let v3 = makeLetterShiftRow()
-      
-      [v1, v2, v3].forEach {
-        $0.heightAnchor.constraint(equalToConstant: KeyboardConstants.MAIN_KEY_H).isActive = true
-        contentStack.addArrangedSubview($0)
-      }
-      
-      [numRow, v1, v2, v3].forEach { row in
-        row.setContentHuggingPriority(.required, for: .vertical)
-        row.setContentCompressionResistancePriority(.required, for: .vertical)
-      }
+      keyRows = [makeLetterRow1(), makeLetterRow2(), makeLetterShiftRow()]
     }
+    keyRows.forEach { contentStack.addArrangedSubview($0) }
+
+    // 행 높이를 절대값이 아닌 '비율'로 묶는다. 키 행 3개는 서로 같고, 숫자 행은 키 행 대비
+    // 38/42 비율. 스택이 시스템 높이에 맞춰 늘어나면 모든 행이 비례 확대/축소된다.
+    let baseRow = keyRows[0]
+    for row in keyRows.dropFirst() {
+      row.heightAnchor.constraint(equalTo: baseRow.heightAnchor).isActive = true
+    }
+    numRow.heightAnchor.constraint(
+      equalTo: baseRow.heightAnchor,
+      multiplier: KeyboardConstants.NUMBER_ROW_H / KeyboardConstants.MAIN_KEY_H
+    ).isActive = true
+
+    // 행이 스택 높이에 맞춰 늘어나도록 hugging은 낮게, 압축 저항은 시스템 높이에는 양보하도록 설정
+    for row in [numRow] + keyRows {
+      row.setContentHuggingPriority(.defaultLow, for: .vertical)
+      row.setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
+    }
+
     return contentStack
   }
 
