@@ -17,7 +17,9 @@ class KeyboardViewController: UIInputViewController {
   
   var automata = HangulAutomata();
   var composingChar: Character? = nil;
-  var activeLength: Int = 0; // 밑줄 없는 조합을 위한 현재 조합 길이 추적
+  /// 현재 문서에 표시 중인 한글 조합 문자열(밑줄 없는 조합 구현용).
+  /// prefix-diff 삭제/삽입의 기준이 된다. flush 시 빈 문자열로 초기화.
+  var composedText: String = "";
   var allKeyButtons: [KeyButton] = [];
   var shiftButton: KeyButton?;
 
@@ -166,8 +168,6 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
-    os_log("🚀 viewWillAppear w=%.1f h=%.1f safeBottom=%.1f", log: logger, type: .default,
-           view.bounds.width, view.bounds.height, view.safeAreaInsets.bottom)
     resetKeyboardState()
     // 등장 애니메이션 시작 전에 키보드 높이 확정 (점프 방지의 핵심)
     installKeyboardHeightConstraint()
@@ -178,23 +178,6 @@ class KeyboardViewController: UIInputViewController {
       updateAppearance()
       view.layoutIfNeeded()
     }
-  }
-
-  // MARK: - 점프 진단 로그 (원인 파악 후 제거 예정)
-
-  override func viewDidLayoutSubviews() {
-    super.viewDidLayoutSubviews()
-    let contentH = mainContentStack?.bounds.height ?? -1
-    os_log("📐 didLayoutSubviews view=%.1fx%.1f safeBottom=%.1f mainStackH=%.1f",
-           log: logger, type: .default,
-           view.bounds.width, view.bounds.height, view.safeAreaInsets.bottom, contentH)
-  }
-
-  override func viewSafeAreaInsetsDidChange() {
-    super.viewSafeAreaInsetsDidChange()
-    os_log("⚠️ safeAreaInsetsDidChange bottom=%.1f top=%.1f",
-           log: logger, type: .default,
-           view.safeAreaInsets.bottom, view.safeAreaInsets.top)
   }
 
   override func viewWillDisappear(_ animated: Bool) {
@@ -223,29 +206,24 @@ class KeyboardViewController: UIInputViewController {
 
   override func textDidChange(_ textInput: UITextInput?) {
     super.textDidChange(textInput)
-    
+
+    // 키보드가 직접 입력 중인 변경은 무시한다. 우리가 매 키마다 수행하는
+    // deleteBackward/insertText도 textDidChange를 유발하므로, 여기서 proxy 컨텍스트를
+    // 조회하면 입력 핫패스마다 불필요한 IPC가 누적되어 입력이 씹힌다.
+    guard !isSuppressingSelectionChange else { return }
+
     // 외부적인 변경(터치로 커서 이동 등) 감지 시 한글 조합 상태 종결
-    if !isSuppressingSelectionChange {
-      flushHangul()
-    }
-    
+    flushHangul()
+
+    // 외부 삭제 감지 (카카오톡 전송 등)
     let before = textDocumentProxy.documentContextBeforeInput ?? ""
     let after = textDocumentProxy.documentContextAfterInput ?? ""
-    
-    // 외부 삭제 감지 (카카오톡 전송 등)
     if before.isEmpty && after.isEmpty {
       if composingChar != nil || !automata.jamoStack.isEmpty {
         resetKeyboardState();
         rebuildKeyboard();
       }
     }
-  }
-
-  override func viewDidAppear(_ animated: Bool) {
-    super.viewDidAppear(animated);
-    os_log("✅ viewDidAppear w=%.1f h=%.1f safeBottom=%.1f", log: logger, type: .default,
-           view.bounds.width, view.bounds.height, view.safeAreaInsets.bottom)
-    // viewDidAppear에서 추가 rebuildKeyboard 호출 불필요 (viewWillAppear에서 처리됨)
   }
 
   override func selectionWillChange(_ textInput: UITextInput?) {
@@ -288,7 +266,7 @@ class KeyboardViewController: UIInputViewController {
   private func resetKeyboardState() {
     automata.reset();
     composingChar = nil;
-    activeLength = 0;
+    composedText = "";
     isShifted = false;
     isShiftLocked = false;
     

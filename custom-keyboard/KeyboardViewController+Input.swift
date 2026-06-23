@@ -1,23 +1,23 @@
 import UIKit
 
 extension KeyboardViewController {
-  
+
   // MARK: - 문자 및 한글 입력 로직
-  
-  @objc func letterTapped(_ sender: KeyButton) {
-    // touchesBegan에서 처리하므로 중복 방지를 위해 비워둠 (혹은 무시)
-  }
+
+  // 특수 키 목록. 매 키 입력마다 배열을 새로 만들지 않도록 static Set으로 캐시.
+  // 스페이스바(" ")도 탭/드래그 구분을 위해 여기서 제외하고 touchesEnded에서 처리.
+  private static let specialKeys: Set<String> = [
+    "shift", "backspace", "lang", "symbol", "enter", "custom", "dismiss", " "
+  ]
 
   // delegate(touchesBegan)로 호출되는 일반 문자 키 전용 입력 함수
   // 특수 키(backspace, cursor, shift 등)는 각자의 addTarget 핸들러에서 처리
   func handleKeyPress(_ sender: KeyButton) {
     let key = sender.keyValue;
     if key == "dummy" || key == "" { return; }
-    
+
     // 특수 키는 여기서 처리하지 않음 (addTarget 핸들러에서 담당)
-    // 스페이스바(" ")도 탭/드래그 구분을 위해 여기서 제외하고 touchesEnded에서 처리
-    let specialKeys = ["shift", "backspace", "lang", "symbol", "enter", "custom", "dismiss", " "];
-    if specialKeys.contains(key) || key.contains("cursor") { return; }
+    if Self.specialKeys.contains(key) || key.contains("cursor") { return; }
     
     // 일반 문자 입력: 즉각 햄틱 + 입력 처리
     
@@ -56,31 +56,54 @@ extension KeyboardViewController {
 
     // selectionDidChange 억제: 내부 조작 중 automata 리셋 방지
     performWithoutSelectionChange {
-      // 기존 조합 중인 글자 삭제 (밑줄 없는 효과를 위해)
-      for _ in 0..<activeLength {
-        textDocumentProxy.deleteBackward();
-      }
-
       automata.input(jamo);
-      let combined = automata.compose();
-      
-      // 새 조합 삽입
-      if !combined.isEmpty {
-        textDocumentProxy.insertText(combined);
-        activeLength = combined.count;
-        composingChar = combined.last;
-      } else {
-        activeLength = 0;
-        composingChar = nil;
-      }
+      renderComposing();
     }
+  }
+
+  /// 조합 중인 한글을 prefix-diff로 문서에 최소 변경 반영한다.
+  ///
+  /// 기존 구현은 매 키 입력마다 조합 문자열 '전체'를 deleteBackward로 지우고 재삽입했다.
+  /// 조합은 띄어쓰기 전까지 누적되므로 단어가 길어질수록 입력 한 번에 필요한 proxy IPC가
+  /// O(n)으로 늘어나, 빠르게 칠수록 키가 씹혔다. 여기서는 직전 조합 문자열과의 공통 접두사를
+  /// 보존하고 바뀐 꼬리만 지우고 다시 넣어, 입력당 proxy 연산을 O(1)로 만든다.
+  /// 반드시 performWithoutSelectionChange 안에서 호출해야 한다.
+  func renderComposing() {
+    let newComposed = automata.compose();
+    let common = commonPrefixCount(composedText, newComposed);
+
+    let deleteCount = composedText.count - common;
+    for _ in 0..<deleteCount {
+      textDocumentProxy.deleteBackward();
+    }
+
+    let insertPart = String(newComposed.dropFirst(common));
+    if !insertPart.isEmpty {
+      textDocumentProxy.insertText(insertPart);
+    }
+
+    composedText = newComposed;
+    composingChar = newComposed.last;
+  }
+
+  /// 두 문자열이 앞에서부터 공유하는 Character 개수.
+  func commonPrefixCount(_ a: String, _ b: String) -> Int {
+    var count = 0;
+    var i = a.startIndex;
+    var j = b.startIndex;
+    while i < a.endIndex, j < b.endIndex, a[i] == b[j] {
+      count += 1;
+      i = a.index(after: i);
+      j = b.index(after: j);
+    }
+    return count;
   }
 
   func flushHangul() {
     // 이미 insertText로 들어가 있으므로 상태만 초기화
     // isHangul guard 제거: 어떤 모드에서든 안전하게 상태를 초기화할 수 있도록 함
     automata.reset();
-    activeLength = 0;
+    composedText = "";
     composingChar = nil;
   }
 
@@ -320,27 +343,14 @@ extension KeyboardViewController {
       if isHangul && !isSymbol {
         // 한글 조합 중일 때 (스택에 자모가 남아있음)
         if !automata.jamoStack.isEmpty {
-          // 기존 조합 글자 삭제
-          for _ in 0..<activeLength {
-            textDocumentProxy.deleteBackward();
-          }
-          
+          // 자모 하나를 제거하고 prefix-diff로 바뀐 부분만 갱신
           automata.backspace();
-              
-          let combined = automata.compose();
-          if !combined.isEmpty {
-            textDocumentProxy.insertText(combined);
-            activeLength = combined.count;
-            composingChar = combined.last;
-          } else {
-            activeLength = 0;
-            composingChar = nil;
-          }
+          renderComposing();
         } else {
           // 조합 중이 아닐 때 앞 글자(음절) 한 자 삭제
           if textDocumentProxy.hasText {
             textDocumentProxy.deleteBackward();
-            activeLength = 0;
+            composedText = "";
           }
         }
       } else {

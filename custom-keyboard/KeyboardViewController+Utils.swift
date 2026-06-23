@@ -130,22 +130,11 @@ extension KeyboardViewController {
 
   func insertVariant(_ selected: String) {
     if isHangul {
-      // 기존 조합 중인 글자 삭제 (밑줄 없는 효과를 위해)
-      for _ in 0..<activeLength {
-        textDocumentProxy.deleteBackward();
-      }
-      
-      automata.backspace();
-      automata.input(Character(selected));
-      let combined = automata.compose();
-      
-      if !combined.isEmpty {
-        textDocumentProxy.insertText(combined);
-        activeLength = combined.count;
-        composingChar = combined.last;
-      } else {
-        activeLength = 0;
-        composingChar = nil;
+      // 현재 조합의 마지막 자모를 변체로 교체 후 prefix-diff로 갱신
+      performWithoutSelectionChange {
+        automata.backspace();
+        automata.input(Character(selected));
+        renderComposing();
       }
     } else {
       textDocumentProxy.insertText(selected)

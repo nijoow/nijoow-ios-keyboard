@@ -32,6 +32,21 @@ private let COMPOUND_JONGSEONG: [Character: [Character: Character]] = [
   "ㅂ": ["ㅅ": "ㅄ"]
 ];
 
+// 빠른 자모 분류용 Set (Array.contains 의 선형 탐색 제거)
+private let JUNGSEONG_SET: Set<Character> = Set(JUNGSEONG);
+private let JONGSEONG_SET: Set<Character> = Set(JONGSEONG.filter { $0 != "\0" });
+
+// 복합 종성 → (선행, 후행) 역매핑을 미리 만들어 매 백스페이스마다 전체 순회 방지
+private let JONGSEONG_DECOMPOSE: [Character: (Character, Character)] = {
+  var map: [Character: (Character, Character)] = [:];
+  for (first, dict) in COMPOUND_JONGSEONG {
+    for (second, compound) in dict {
+      map[compound] = (first, second);
+    }
+  }
+  return map;
+}();
+
 // MARK: - HangulAutomata
 
 class HangulAutomata {
@@ -152,20 +167,15 @@ class HangulAutomata {
   // MARK: - Private 헬퍼
   
   private func isJungseong(_ ch: Character) -> Bool {
-    return JUNGSEONG.contains(ch);
+    return JUNGSEONG_SET.contains(ch);
   }
-  
+
   private func isJongseong(_ ch: Character) -> Bool {
-    return JONGSEONG.contains(ch) && ch != "\0";
+    return JONGSEONG_SET.contains(ch);
   }
-  
+
   private func decomposeJongseong(_ jong: Character) -> (Character, Character)? {
-    for (first, dict) in COMPOUND_JONGSEONG {
-      for (second, compound) in dict {
-        if compound == jong { return (first, second); }
-      }
-    }
-    return nil;
+    return JONGSEONG_DECOMPOSE[jong];
   }
   
   private func commitSyllable(_ cho: Character, _ jung: Character?, _ jong: Character?) -> String {
