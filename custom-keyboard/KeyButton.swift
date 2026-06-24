@@ -20,6 +20,17 @@ class KeyButton: UIButton {
       updateLayerAppearance();
     }
   }
+
+  /// 스페이스바 드래그처럼 터치가 끝나거나 취소돼도 눌린 상태를 유지해야 할 때 true.
+  var dragActive: Bool = false {
+    didSet {
+      guard oldValue != dragActive else { return }
+      updateHighlightState()
+    }
+  }
+
+  /// dragActive 상태에서 사용할 강조 배경색 (컨트롤러가 테마 색을 주입)
+  var dragActiveColor: UIColor?
   
   override init(frame: CGRect) {
     super.init(frame: frame);
@@ -120,9 +131,15 @@ class KeyButton: UIButton {
   
   private func updateHighlightState() {
     let isDark = traitCollection.userInterfaceStyle == .dark;
-    
-    UIView.animate(withDuration: 0.08, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction], animations: {
-      if self.isHighlighted {
+
+    UIView.animate(withDuration: 0.12, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction], animations: {
+      if self.dragActive {
+        // 드래그 중: 또렷하게 살짝 눌린 강조 상태를 유지 (터치가 취소돼도 풀리지 않음)
+        self.transform = CGAffineTransform(scaleX: 0.97, y: 0.97);
+        self.glassBodyLayer.opacity = 1.0;
+        self.alpha = 1.0;
+        self.backgroundColor = self.dragActiveColor ?? self.normalBackgroundColor;
+      } else if self.isHighlighted {
         self.transform = CGAffineTransform(scaleX: 0.92, y: 0.92);
         self.glassBodyLayer.opacity = 0.5;
         if isDark { self.alpha = 0.7; }

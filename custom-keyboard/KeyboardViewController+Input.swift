@@ -283,40 +283,66 @@ extension KeyboardViewController {
   // MARK: - 스페이스바 드래그 커서 이동
   
   @objc func handleSpacePan(_ gesture: UIPanGestureRecognizer) {
-    let translation = gesture.translation(in: gesture.view)
-    
     switch gesture.state {
     case .began:
-      // 드래그 시작 시 현재 한글 조합을 완료하여 데이터 꼬임 방지
-      flushHangul();
-      accumulatedPanX = 0;
-      isSpaceDragging = true;
-      
+      // 즉시 드래그한 경우에도 커서 이동 모드로 진입
+      beginSpaceCursorMode();
+
     case .changed:
       // 이전 실시간 이동량을 누적
+      let translation = gesture.translation(in: gesture.view);
       accumulatedPanX += translation.x;
       // 처리가 완료된 상대적 증분만 남기기 위해 translation 리셋
       gesture.setTranslation(.zero, in: gesture.view);
-      
+
       let threshold: CGFloat = 12.0; // 한 칸 이동을 위한 드래그 거리 (픽셀 단위)
-      
+
       if abs(accumulatedPanX) >= threshold {
         let direction = accumulatedPanX > 0 ? 1 : -1;
         textDocumentProxy.adjustTextPosition(byCharacterOffset: direction);
-            
+
         // 이동한 만큼의 거리를 뺀 나머지만 남겨서 부드러운 연속 이동 가능케 함
         accumulatedPanX -= CGFloat(direction) * threshold;
       }
-      
+
     case .ended, .cancelled:
-      accumulatedPanX = 0;
-      // 약간의 딜레이를 주어 touchesEnded가 먼저 처리될 기회를 주거나 상태를 정리합니다.
-      DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-        self.isSpaceDragging = false;
-      }
-      break;
+      endSpaceCursorMode();
+
     default:
       break;
+    }
+  }
+
+  // 스페이스바 꾹 누름(롱프레스) → 드래그 없이도 커서 이동 모드로 진입.
+  // 짧게 탭하면 롱프레스가 인식되지 않아 touchesEnded에서 띄어쓰기만 입력된다.
+  @objc func handleSpaceLongPress(_ gesture: UILongPressGestureRecognizer) {
+    switch gesture.state {
+    case .began:
+      beginSpaceCursorMode();
+    case .ended, .cancelled:
+      endSpaceCursorMode();
+    default:
+      break;
+    }
+  }
+
+  /// 커서 이동 모드 진입 (롱프레스/드래그 공통). 현재 한글 조합을 완료해 꼬임 방지.
+  func beginSpaceCursorMode() {
+    guard !isSpaceDragging else { return }
+    flushHangul();
+    accumulatedPanX = 0;
+    isSpaceDragging = true;
+    beginSpaceDragVisual();
+  }
+
+  /// 커서 이동 모드 종료 (롱프레스/드래그 공통).
+  func endSpaceCursorMode() {
+    guard isSpaceDragging || spaceDragOverlay != nil else { return }
+    accumulatedPanX = 0;
+    endSpaceDragVisual();
+    // touchesEnded가 먼저 띄어쓰기를 넣지 않도록 약간의 딜레이 후 플래그 해제
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+      self.isSpaceDragging = false;
     }
   }
 
@@ -424,4 +450,15 @@ extension KeyboardViewController: CustomKeyboardViewDelegate {
   func customKeyboardViewDidTapBackspace(_ view: CustomKeyboardView) {
     handleBackspace()
   }}
+
+// MARK: - UIGestureRecognizerDelegate
+
+extension KeyboardViewController: UIGestureRecognizerDelegate {
+  // 스페이스바의 롱프레스(커서모드 진입)와 팬(커서 이동)이 동시에 인식되도록 허용.
+  // 이게 없으면 롱프레스 인식 후 pan이 막혀 꾹 누른 뒤 드래그해도 커서가 움직이지 않는다.
+  func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                         shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+    return gestureRecognizer.view == spaceButton && otherGestureRecognizer.view == spaceButton
+  }
+}
 

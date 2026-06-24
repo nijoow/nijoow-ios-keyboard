@@ -22,6 +22,10 @@ class KeyboardViewController: UIInputViewController {
   var composedText: String = "";
   var allKeyButtons: [KeyButton] = [];
   var shiftButton: KeyButton?;
+  var spaceButton: KeyButton?;
+
+  // 스페이스바 드래그(커서 이동) 중 다른 키를 덮는 딤 오버레이
+  var spaceDragOverlay: SpaceDragOverlayView?;
 
   // MARK: - 레이아웃 캐시 (메모리 최적화)
   var utilityRow: UIView?
@@ -185,6 +189,7 @@ class KeyboardViewController: UIInputViewController {
     os_log("🛑 viewWillDisappear", log: logger, type: .default)
     // 키보드가 닫힐 때 활성화된 타이머 및 무거운 뷰(이모지 패널) 정리
     stopAllTimers()
+    endSpaceDragVisual()
     if customKeyboardView != nil {
       customKeyboardView?.removeFromSuperview()
       customKeyboardView = nil

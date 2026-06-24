@@ -12,6 +12,7 @@ extension KeyboardViewController {
     customKeyboardView = nil
     allKeyButtons.removeAll()
     shiftButton = nil
+    spaceButton = nil
     
     // 1. 바톰 행 (하단 고정)
     let botRow = makeBottomRow()
@@ -231,11 +232,20 @@ extension KeyboardViewController {
     enterBtn.addTarget(self, action: #selector(enterTapped), for: .touchUpInside);
 
     let spaceBtn = makeGlassButton(title: "", id: " ", isSpecial: false, tag: 203);
+    spaceButton = spaceBtn;
     let dotBtn = makeGlassButton(title: ".", id: ".", isSpecial: false, tag: 204);
 
     let pan = UIPanGestureRecognizer(target: self, action: #selector(handleSpacePan(_:)));
     pan.delaysTouchesBegan = false;
+    pan.delegate = self;
     spaceBtn.addGestureRecognizer(pan);
+
+    // 꾹 누르면(롱프레스) 드래그 없이도 커서 이동 모드로 진입.
+    // 롱프레스가 인식된 뒤에도 pan이 동시 인식되어야 드래그로 커서가 움직인다(delegate).
+    let spaceLongPress = UILongPressGestureRecognizer(target: self, action: #selector(handleSpaceLongPress(_:)));
+    spaceLongPress.minimumPressDuration = 0.3;
+    spaceLongPress.delegate = self;
+    spaceBtn.addGestureRecognizer(spaceLongPress);
 
     [symBtn, langBtn, spaceBtn, dotBtn, enterBtn].forEach {
       $0.translatesAutoresizingMaskIntoConstraints = false
@@ -271,8 +281,71 @@ extension KeyboardViewController {
     return container
   }
 
+  // MARK: - 스페이스바 드래그 비주얼
+
+  /// 스페이스바 드래그(커서 이동) 시작: 스페이스바를 눌린 강조 상태로 고정하고,
+  /// 나머지 키 위에 딤 오버레이를 깔아 입력 불가 + 드래그 중임을 알린다.
+  func beginSpaceDragVisual() {
+    guard let space = spaceButton, spaceDragOverlay == nil else { return }
+
+    // 1. 스페이스바를 눌린 강조 상태로 고정 + 커서 이동 힌트(‹ ›) 표시
+    space.dragActiveColor = activeGlassColor
+    space.dragActive = true
+    space.setTitle("‹    ›", for: .normal)
+    space.setTitleColor(activeTextColor, for: .normal)
+
+    // 2. 스페이스바를 제외한 영역을 덮는 딤 오버레이
+    let spaceFrame = space.convert(space.bounds, to: view)
+    let holeRect = spaceFrame.insetBy(dx: -1, dy: -1)
+    let radius = space.layer.cornerRadius
+
+    let overlay = SpaceDragOverlayView(frame: view.bounds)
+    overlay.passthroughRect = spaceFrame
+    overlay.backgroundColor = .clear
+
+    // 딤: 전체를 칠하되 스페이스바 영역만 구멍을 뚫는다 (even-odd)
+    let dim = CAShapeLayer()
+    let dimPath = UIBezierPath(rect: overlay.bounds)
+    dimPath.append(UIBezierPath(roundedRect: holeRect, cornerRadius: radius))
+    dim.path = dimPath.cgPath
+    dim.fillRule = .evenOdd
+    dim.fillColor = UIColor(white: 0.0, alpha: isDarkMode ? 0.45 : 0.22).cgColor
+    overlay.layer.addSublayer(dim)
+
+    // 스페이스바 강조 링 (드래그 중인 컨트롤을 또렷이)
+    let ring = CAShapeLayer()
+    ring.path = UIBezierPath(roundedRect: holeRect, cornerRadius: radius).cgPath
+    ring.fillColor = UIColor.clear.cgColor
+    ring.strokeColor = (isDarkMode ? UIColor(white: 1.0, alpha: 0.55) : UIColor(white: 0.0, alpha: 0.28)).cgColor
+    ring.lineWidth = 1.5
+    overlay.layer.addSublayer(ring)
+
+    view.addSubview(overlay)
+    spaceDragOverlay = overlay
+
+    overlay.alpha = 0
+    UIView.animate(withDuration: 0.15) { overlay.alpha = 1 }
+  }
+
+  /// 스페이스바 드래그 종료: 강조 상태와 오버레이를 해제한다.
+  func endSpaceDragVisual() {
+    if let space = spaceButton {
+      space.dragActive = false
+      space.dragActiveColor = nil
+      space.setTitle("", for: .normal)
+    }
+
+    guard let overlay = spaceDragOverlay else { return }
+    spaceDragOverlay = nil
+    UIView.animate(withDuration: 0.15, animations: {
+      overlay.alpha = 0
+    }, completion: { _ in
+      overlay.removeFromSuperview()
+    })
+  }
+
   // MARK: - 버튼 팩토리
-  
+
   func makeGlassButton(title: String, id: String, isSpecial: Bool, tag: Int = 0, fontSize: CGFloat? = nil) -> KeyButton {
     let btn = KeyButton(type: .custom)
     btn.tag = tag
@@ -296,7 +369,8 @@ extension KeyboardViewController {
     // 버튼 사이의 공백을 터치 영역으로 포함 (가로 3pt, 세로 5pt 간격보다 크게 설정하여 오버랩 생성)
     btn.touchAreaInsets = UIEdgeInsets(top: -3.0, left: -2.0, bottom: -3.0, right: -2.0);
 
-    if !isSpecial {
+    // 스페이스바는 커서 이동용 롱프레스를 따로 쓰므로 변체 팝업 롱프레스 제외
+    if !isSpecial && id != " " {
       let lp = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
       lp.minimumPressDuration = 0.4
       btn.addGestureRecognizer(lp)
