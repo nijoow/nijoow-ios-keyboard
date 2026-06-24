@@ -24,7 +24,7 @@ extension KeyboardViewController {
       botRow.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -6),
       botRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
       botRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
-      botRow.heightAnchor.constraint(equalToConstant: KeyboardConstants.BOTTOM_ROW_H)
+      botRow.heightAnchor.constraint(equalToConstant: layoutMetrics.bottomRowH)
     ])
     botRow.setContentHuggingPriority(.required, for: .vertical)
     botRow.setContentCompressionResistancePriority(.required, for: .vertical)
@@ -42,7 +42,7 @@ extension KeyboardViewController {
       utilRow.bottomAnchor.constraint(equalTo: contentStack.topAnchor, constant: -7),
       utilRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
       utilRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
-      utilRow.heightAnchor.constraint(equalToConstant: KeyboardConstants.UTIL_ROW_H)
+      utilRow.heightAnchor.constraint(equalToConstant: layoutMetrics.utilRowH)
     ])
     utilRow.setContentHuggingPriority(.required, for: .vertical)
     utilRow.setContentCompressionResistancePriority(.required, for: .vertical)
@@ -161,7 +161,7 @@ extension KeyboardViewController {
     }
     numRow.heightAnchor.constraint(
       equalTo: baseRow.heightAnchor,
-      multiplier: KeyboardConstants.NUMBER_ROW_H / KeyboardConstants.MAIN_KEY_H
+      multiplier: layoutMetrics.numberRowH / layoutMetrics.mainKeyH
     ).isActive = true
 
     // 행이 스택 높이에 맞춰 늘어나도록 hugging은 낮게, 압축 저항은 시스템 높이에는 양보하도록 설정
@@ -216,7 +216,7 @@ extension KeyboardViewController {
     stack.addArrangedSubview(dismissBtn)
 
     // 최상단 유틸 버튼(커서/이모지/키보드 닫기)은 일반 키보다 모서리를 살짝 더 각지게
-    let utilRadius = KeyboardConstants.CORNER_RADIUS - 3
+    let utilRadius = layoutMetrics.utilCornerRadius
     for case let btn as KeyButton in stack.arrangedSubviews {
       btn.layer.cornerRadius = utilRadius
     }
@@ -357,12 +357,12 @@ extension KeyboardViewController {
     btn.tag = tag
     btn.keyValue = id
     btn.setTitle(title, for: .normal)
-    btn.titleLabel?.font = UIFont.systemFont(ofSize: fontSize ?? KeyboardConstants.KEY_FONT_SIZE, weight: isSpecial ? .medium : .regular)
+    btn.titleLabel?.font = UIFont.systemFont(ofSize: fontSize ?? layoutMetrics.keyFontSize, weight: isSpecial ? .medium : .regular)
     btn.setTitleColor(isSpecial ? specialTextColor : keyTextColor, for: .normal)
     btn.backgroundColor = isSpecial ? specialGlassColor : keyGlassColor
     btn.normalBackgroundColor = btn.backgroundColor
-    
-    btn.layer.cornerRadius = KeyboardConstants.CORNER_RADIUS;
+
+    btn.layer.cornerRadius = layoutMetrics.cornerRadius;
     // 단색 보더 대신 KeyButton의 림 라이트로 가장자리를 표현 (글래스 느낌)
     btn.layer.shadowColor = UIColor.black.cgColor;
     btn.layer.shadowOffset = CGSize(width: 0, height: 3);
@@ -389,7 +389,7 @@ extension KeyboardViewController {
     let btn = makeGlassButton(title: "", id: "dummy", isSpecial: true)
     btn.isUserInteractionEnabled = false // 터치 방지
     btn.alpha = 0.2 // 옵시디언 테마에 맞춰 더 투명하게
-    btn.layer.cornerRadius = KeyboardConstants.CORNER_RADIUS / 2
+    btn.layer.cornerRadius = layoutMetrics.cornerRadius / 2
     return btn
   }
 
@@ -438,7 +438,7 @@ extension KeyboardViewController {
         let targetTitle = isSymbol ? (isShifted ? "2/2" : "1/2") : (isShiftLocked ? "⇪" : "⇧");
         if btn.title(for: .normal) != targetTitle {
           btn.setTitle(targetTitle, for: .normal);
-          btn.titleLabel?.font = UIFont.systemFont(ofSize: isSymbol ? 16 : KeyboardConstants.KEY_FONT_SIZE, weight: .medium);
+          btn.titleLabel?.font = UIFont.systemFont(ofSize: isSymbol ? 16 : layoutMetrics.keyFontSize, weight: .medium);
         }
       }
       
@@ -597,7 +597,7 @@ extension KeyboardViewController {
       fontSize = 16
     } else {
       shiftTitle = isShiftLocked ? "⇪" : "⇧"
-      fontSize = KeyboardConstants.KEY_FONT_SIZE
+      fontSize = layoutMetrics.keyFontSize
     }
     
     let shiftBtn = makeGlassButton(title: shiftTitle, id: "shift", isSpecial: true, tag: 699, fontSize: fontSize)

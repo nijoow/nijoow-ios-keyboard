@@ -36,19 +36,55 @@ class KeyboardViewController: UIInputViewController {
   // 키보드 전체 높이를 확정하는 제약 (priority 999). 점프 방지의 핵심.
   var keyboardHeightConstraint: NSLayoutConstraint?
 
-  /// 레이아웃 상수로부터 역산한 키보드 전체 높이.
+  // MARK: - 적응형 레이아웃 메트릭 (기기/방향별)
+  //
+  // 행 높이·모서리 반경·폰트를 기기(아이폰/아이패드)와 방향(세로/가로)에 맞춰 산출한다.
+  // 행 사이의 간격/여백(insetTop 등)은 방향과 무관하게 고정해 desiredKeyboardHeight 식과 일치시킨다.
+  struct LayoutMetrics {
+    var utilRowH: CGFloat
+    var numberRowH: CGFloat
+    var mainKeyH: CGFloat
+    var bottomRowH: CGFloat
+    var cornerRadius: CGFloat
+    var utilCornerRadius: CGFloat
+    var keyFontSize: CGFloat
+  }
+
+  /// 화면이 가로 방향인지 (키보드 익스텐션에서는 UIScreen 기준이 가장 신뢰성 높음)
+  var isLandscapeScreen: Bool {
+    let s = UIScreen.main.bounds.size
+    return s.width > s.height
+  }
+
+  var layoutMetrics: LayoutMetrics {
+    if isLandscapeScreen {
+      // 아이폰 가로: 화면을 과하게 덮지 않도록 행 높이를 줄여 컴팩트하게
+      return LayoutMetrics(utilRowH: 24, numberRowH: 26, mainKeyH: 26, bottomRowH: 26,
+                           cornerRadius: 9, utilCornerRadius: 6, keyFontSize: 17)
+    } else {
+      // 아이폰 세로 (기존 값 유지)
+      return LayoutMetrics(utilRowH: KeyboardConstants.UTIL_ROW_H,
+                           numberRowH: KeyboardConstants.NUMBER_ROW_H,
+                           mainKeyH: KeyboardConstants.MAIN_KEY_H,
+                           bottomRowH: KeyboardConstants.BOTTOM_ROW_H,
+                           cornerRadius: KeyboardConstants.CORNER_RADIUS,
+                           utilCornerRadius: KeyboardConstants.CORNER_RADIUS - 3,
+                           keyFontSize: KeyboardConstants.KEY_FONT_SIZE)
+    }
+  }
+
+  /// 레이아웃 메트릭으로부터 역산한 키보드 전체 높이.
   /// = 상단여백 + 유틸행 + 간격 + (숫자행 + 키행*3 + 행간격*3) + 간격 + 바텀행 + 하단여백
   var desiredKeyboardHeight: CGFloat {
+    let m = layoutMetrics
     let insetTop: CGFloat = 6
     let insetBottom: CGFloat = 6
     let utilGap: CGFloat = 7
     let bottomGap: CGFloat = 7
     let rowSpacing: CGFloat = 5
-    let contentStack = KeyboardConstants.NUMBER_ROW_H
-      + KeyboardConstants.MAIN_KEY_H * 3
-      + rowSpacing * 3
-    return insetTop + KeyboardConstants.UTIL_ROW_H + utilGap
-      + contentStack + bottomGap + KeyboardConstants.BOTTOM_ROW_H + insetBottom
+    let contentStack = m.numberRowH + m.mainKeyH * 3 + rowSpacing * 3
+    return insetTop + m.utilRowH + utilGap
+      + contentStack + bottomGap + m.bottomRowH + insetBottom
   }
 
   // MARK: - 팝업 상태 (Long Press)
@@ -178,6 +214,21 @@ class KeyboardViewController: UIInputViewController {
       updateAppearance()
       view.layoutIfNeeded()
     }
+  }
+
+  // 기기 회전 대응: 방향이 바뀌면 메트릭이 달라지므로 높이 제약을 갱신하고
+  // 레이아웃을 다시 빌드해 행 높이/모서리/폰트를 새 방향에 맞춘다.
+  override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+    super.viewWillTransition(to: size, with: coordinator)
+    coordinator.animate(alongsideTransition: { _ in
+      self.buildKeyboard()
+      self.installKeyboardHeightConstraint()
+      UIView.performWithoutAnimation {
+        self.updateKeyLabels()
+        self.updateAppearance()
+        self.view.layoutIfNeeded()
+      }
+    }, completion: nil)
   }
 
   override func viewWillDisappear(_ animated: Bool) {
