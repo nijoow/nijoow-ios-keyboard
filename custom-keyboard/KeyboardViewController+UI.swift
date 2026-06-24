@@ -215,6 +215,12 @@ extension KeyboardViewController {
     dismissBtn.addTarget(self, action: #selector(dismissTapped), for: .touchUpInside)
     stack.addArrangedSubview(dismissBtn)
 
+    // 최상단 유틸 버튼(커서/이모지/키보드 닫기)은 일반 키보다 모서리를 살짝 더 각지게
+    let utilRadius = KeyboardConstants.CORNER_RADIUS - 3
+    for case let btn as KeyButton in stack.arrangedSubviews {
+      btn.layer.cornerRadius = utilRadius
+    }
+
     return stack
   }
 
