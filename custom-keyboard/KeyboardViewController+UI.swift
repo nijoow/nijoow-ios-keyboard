@@ -542,8 +542,9 @@ extension KeyboardViewController {
       }
 
       if let key = firstKey {
-        leftDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.3).isActive = true;
-        rightDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.3).isActive = true;
+        // 양옆 공백(더미)을 키 폭의 0.4배로 — 0.3 대비 살짝 넓혀 9키 행 버튼을 조금 좁힌다
+        leftDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.4).isActive = true;
+        rightDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.4).isActive = true;
       }
     } else {
       // 10개 버튼일 경우 (기존 fillEqually와 동일하게 동작)
@@ -624,14 +625,22 @@ extension KeyboardViewController {
       btn.touchAreaInsets.bottom = -10.0;
     }
     
+    let letterKeys = letterStack.arrangedSubviews.compactMap { $0 as? KeyButton }
     NSLayoutConstraint.activate([
       shiftBtn.leadingAnchor.constraint(equalTo: container.leadingAnchor), shiftBtn.topAnchor.constraint(equalTo: container.topAnchor),
-      shiftBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor), shiftBtn.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.15),
-      letterStack.leadingAnchor.constraint(equalTo: shiftBtn.trailingAnchor, constant: 4), letterStack.trailingAnchor.constraint(equalTo: bsBtn.leadingAnchor, constant: -4),
+      shiftBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+      letterStack.leadingAnchor.constraint(equalTo: shiftBtn.trailingAnchor, constant: 3), letterStack.trailingAnchor.constraint(equalTo: bsBtn.leadingAnchor, constant: -3),
       letterStack.topAnchor.constraint(equalTo: container.topAnchor), letterStack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
       bsBtn.trailingAnchor.constraint(equalTo: container.trailingAnchor), bsBtn.topAnchor.constraint(equalTo: container.topAnchor),
-      bsBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor), bsBtn.widthAnchor.constraint(equalTo: container.widthAnchor, multiplier: 0.15)
+      bsBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor)
     ])
+    // ⇧/⌫ 폭을 글자 키의 1.5배로 고정 → 표준 10열 그리드에 맞아 글자 키 폭이 다른 행과 거의 동일해진다.
+    if let letterKey = letterKeys.first {
+      NSLayoutConstraint.activate([
+        shiftBtn.widthAnchor.constraint(equalTo: letterKey.widthAnchor, multiplier: 1.5),
+        bsBtn.widthAnchor.constraint(equalTo: letterKey.widthAnchor, multiplier: 1.5)
+      ])
+    }
     return container
   }
 
