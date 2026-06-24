@@ -56,22 +56,38 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         dockContainer.addSubview(dockScrollView)
         dockScrollView.addSubview(dockStackView)
         
-        let dockBg = UIView()
-        dockBg.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.08) : UIColor(white: 0.0, alpha: 0.08)
+        // 글래스모피즘용 프로스트 블러 스타일
+        let glassBlurStyle: UIBlurEffect.Style = isDarkMode ? .systemThinMaterialDark : .systemThinMaterialLight
+        let glassBorderColor = (isDarkMode ? UIColor(white: 1.0, alpha: 0.14) : UIColor(white: 1.0, alpha: 0.6)).cgColor
+
+        // 하단 카테고리 퀵바 배경: 프로스트 글래스
+        let dockBg = UIVisualEffectView(effect: UIBlurEffect(style: glassBlurStyle))
         dockBg.layer.cornerRadius = 10
+        dockBg.clipsToBounds = true
+        dockBg.layer.borderWidth = 1
+        dockBg.layer.borderColor = glassBorderColor
         dockBg.translatesAutoresizingMaskIntoConstraints = false
-        
+
         let backspaceBtn = UIButton(type: .system)
         backspaceBtn.setTitle("⌫", for: .normal)
         backspaceBtn.titleLabel?.font = UIFont.systemFont(ofSize: 20, weight: .medium)
         backspaceBtn.setTitleColor(isDarkMode ? .white : .black, for: .normal)
-        backspaceBtn.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.12) : UIColor(white: 0.0, alpha: 0.12)
-        backspaceBtn.layer.cornerRadius = 10
+        backspaceBtn.backgroundColor = .clear
         backspaceBtn.addTarget(self, action: #selector(backspaceTapped), for: .touchUpInside)
         backspaceBtn.translatesAutoresizingMaskIntoConstraints = false
-        
+
+        // 백스페이스 버튼 배경: 프로스트 글래스 (버튼 뒤에 깔아 터치는 버튼이 받음)
+        let backspaceBg = UIVisualEffectView(effect: UIBlurEffect(style: glassBlurStyle))
+        backspaceBg.isUserInteractionEnabled = false
+        backspaceBg.layer.cornerRadius = 10
+        backspaceBg.clipsToBounds = true
+        backspaceBg.layer.borderWidth = 1
+        backspaceBg.layer.borderColor = glassBorderColor
+        backspaceBg.translatesAutoresizingMaskIntoConstraints = false
+
         dockContainer.insertSubview(dockBg, at: 0)
         dockContainer.addSubview(backspaceBtn)
+        dockContainer.insertSubview(backspaceBg, belowSubview: backspaceBtn)
         
         setupDockButtons()
         
@@ -107,6 +123,11 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
             backspaceBtn.topAnchor.constraint(equalTo: dockContainer.topAnchor),
             backspaceBtn.bottomAnchor.constraint(equalTo: dockContainer.bottomAnchor),
             backspaceBtn.widthAnchor.constraint(equalToConstant: 45),
+
+            backspaceBg.leadingAnchor.constraint(equalTo: backspaceBtn.leadingAnchor),
+            backspaceBg.trailingAnchor.constraint(equalTo: backspaceBtn.trailingAnchor),
+            backspaceBg.topAnchor.constraint(equalTo: backspaceBtn.topAnchor),
+            backspaceBg.bottomAnchor.constraint(equalTo: backspaceBtn.bottomAnchor),
             
             dockScrollView.leadingAnchor.constraint(equalTo: dockContainer.leadingAnchor),
             dockScrollView.trailingAnchor.constraint(equalTo: backspaceBtn.leadingAnchor, constant: -5),
@@ -284,10 +305,9 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         let header = collectionView.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: "CustomHeader", for: indexPath) as! CustomHeaderView
         header.label.text = provider.categories[indexPath.section].title
         header.label.textColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.9) : .black
-        header.backgroundColor = isDarkMode
-            ? UIColor(white: 0.15, alpha: 0.85)
-            : UIColor(white: 0.95, alpha: 0.85)
-        
+        header.backgroundColor = .clear
+        header.applyGlass(isDarkMode: isDarkMode)
+
         return header
     }
     
@@ -345,17 +365,37 @@ class CustomCell: UICollectionViewCell {
 
 class CustomHeaderView: UICollectionReusableView {
     let label = UILabel()
+    private let blurView = UIVisualEffectView()
+    private let hairline = UIView()
     override init(frame: CGRect) {
         super.init(frame: frame)
+        blurView.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(blurView)
+        hairline.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(hairline)
         label.font = UIFont.boldSystemFont(ofSize: 14)
         label.translatesAutoresizingMaskIntoConstraints = false
         addSubview(label)
         NSLayoutConstraint.activate([
+            blurView.topAnchor.constraint(equalTo: topAnchor),
+            blurView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            blurView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            blurView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            hairline.leadingAnchor.constraint(equalTo: leadingAnchor),
+            hairline.trailingAnchor.constraint(equalTo: trailingAnchor),
+            hairline.bottomAnchor.constraint(equalTo: bottomAnchor),
+            hairline.heightAnchor.constraint(equalToConstant: 0.5),
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
             label.centerYAnchor.constraint(equalTo: centerYAnchor)
         ])
     }
     required init?(coder: NSCoder) { fatalError() }
+
+    /// 카테고리 이름 헤더에 프로스트 글래스 + 하단 헤어라인 적용
+    func applyGlass(isDarkMode: Bool) {
+        blurView.effect = UIBlurEffect(style: isDarkMode ? .systemChromeMaterialDark : .systemChromeMaterialLight)
+        hairline.backgroundColor = isDarkMode ? UIColor(white: 1.0, alpha: 0.12) : UIColor(white: 0.0, alpha: 0.10)
+    }
 }
 
 extension CustomKeyboardView: CustomVariationPopupDelegate {
