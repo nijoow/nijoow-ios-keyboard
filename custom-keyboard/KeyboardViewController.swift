@@ -56,8 +56,22 @@ class KeyboardViewController: UIInputViewController {
     return s.width > s.height
   }
 
+  /// 현재 기기가 아이패드인지
+  var deviceIsPad: Bool {
+    return traitCollection.userInterfaceIdiom == .pad
+  }
+
   var layoutMetrics: LayoutMetrics {
-    if isLandscapeScreen {
+    if deviceIsPad {
+      // 아이패드: 큰 화면에 맞춰 행 높이·폰트를 키워 키를 충분히 크게
+      if isLandscapeScreen {
+        return LayoutMetrics(utilRowH: 46, numberRowH: 52, mainKeyH: 60, bottomRowH: 54,
+                             cornerRadius: 16, utilCornerRadius: 13, keyFontSize: 26)
+      } else {
+        return LayoutMetrics(utilRowH: 42, numberRowH: 46, mainKeyH: 52, bottomRowH: 48,
+                             cornerRadius: 14, utilCornerRadius: 11, keyFontSize: 24)
+      }
+    } else if isLandscapeScreen {
       // 아이폰 가로: 화면을 과하게 덮지 않도록 행 높이를 줄여 컴팩트하게
       return LayoutMetrics(utilRowH: 24, numberRowH: 26, mainKeyH: 26, bottomRowH: 26,
                            cornerRadius: 9, utilCornerRadius: 6, keyFontSize: 17)

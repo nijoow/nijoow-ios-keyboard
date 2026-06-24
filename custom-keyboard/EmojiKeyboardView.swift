@@ -15,7 +15,18 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
     
     private let provider = EmojiProvider.shared
     private let isDarkMode: Bool
-    
+
+    private let isPad = UIDevice.current.userInterfaceIdiom == .pad
+
+    /// 가용 폭 기준으로 이모지 셀 한 변 길이를 산출(아이패드 등 넓은 화면에서 셀이 과하게 커지지 않도록).
+    /// 목표 셀 폭 ~52pt, 최소 8열을 유지한다.
+    private var emojiCellSide: CGFloat {
+        let ref = (collectionView?.bounds.width ?? 0) > 0 ? collectionView.bounds.width : self.bounds.width
+        guard ref > 0 else { return 0 }
+        let columns = max(8, Int(ref / 52))
+        return ref / CGFloat(columns)
+    }
+
     init(isDarkMode: Bool) {
         self.isDarkMode = isDarkMode
         super.init(frame: .zero)
@@ -70,7 +81,7 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
 
         let backspaceBtn = UIButton(type: .system)
         backspaceBtn.setTitle("⌫", for: .normal)
-        backspaceBtn.titleLabel?.font = UIFont.systemFont(ofSize: 20, weight: .medium)
+        backspaceBtn.titleLabel?.font = UIFont.systemFont(ofSize: isPad ? 26 : 20, weight: .medium)
         backspaceBtn.setTitleColor(isDarkMode ? .white : .black, for: .normal)
         backspaceBtn.backgroundColor = .clear
         backspaceBtn.addTarget(self, action: #selector(backspaceTapped), for: .touchUpInside)
@@ -117,12 +128,12 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
             dockContainer.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
             dockContainer.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
             dockContainer.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -3),
-            dockContainer.heightAnchor.constraint(equalToConstant: 38),
-            
+            dockContainer.heightAnchor.constraint(equalToConstant: isPad ? 50 : 38),
+
             backspaceBtn.trailingAnchor.constraint(equalTo: dockContainer.trailingAnchor),
             backspaceBtn.topAnchor.constraint(equalTo: dockContainer.topAnchor),
             backspaceBtn.bottomAnchor.constraint(equalTo: dockContainer.bottomAnchor),
-            backspaceBtn.widthAnchor.constraint(equalToConstant: 45),
+            backspaceBtn.widthAnchor.constraint(equalToConstant: isPad ? 64 : 45),
 
             backspaceBg.leadingAnchor.constraint(equalTo: backspaceBtn.leadingAnchor),
             backspaceBg.trailingAnchor.constraint(equalTo: backspaceBtn.trailingAnchor),
@@ -159,9 +170,11 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         
         for (index, category) in provider.categories.enumerated() {
             var config = UIButton.Configuration.plain()
-            config.title = category.icon
+            var titleAttr = AttributeContainer()
+            titleAttr.font = UIFont.systemFont(ofSize: isPad ? 26 : 20)
+            config.attributedTitle = AttributedString(category.icon, attributes: titleAttr)
             config.baseForegroundColor = isDarkMode ? .white : .black
-            config.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: 10, bottom: 0, trailing: 10) // 터치 영역 확보
+            config.contentInsets = NSDirectionalEdgeInsets(top: 0, leading: isPad ? 14 : 10, bottom: 0, trailing: isPad ? 14 : 10) // 터치 영역 확보
             
             let btn = UIButton(configuration: config)
             btn.tag = index
@@ -298,6 +311,9 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
         let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "CustomCell", for: indexPath) as! CustomCell
         cell.label.text = provider.categories[indexPath.section].emojis[indexPath.item]
         cell.label.textColor = isDarkMode ? .white : .black
+        // 셀 크기에 맞춰 이모지 글자 크기 조정 (아이패드 등 큰 셀 대응)
+        let side = emojiCellSide
+        if side > 0 { cell.label.font = .systemFont(ofSize: floor(side * 0.62)) }
         return cell
     }
     
@@ -314,9 +330,8 @@ class CustomKeyboardView: UIView, UICollectionViewDataSource, UICollectionViewDe
     // MARK: - UICollectionViewDelegateFlowLayout
     
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
-        let referenceWidth = collectionView.bounds.width > 0 ? collectionView.bounds.width : self.bounds.width
-        let width = referenceWidth / 8
-        return CGSize(width: width, height: width) 
+        let side = emojiCellSide
+        return CGSize(width: side, height: side)
     }
     
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, referenceSizeForHeaderInSection section: Int) -> CGSize {
