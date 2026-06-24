@@ -354,7 +354,7 @@ extension KeyboardViewController {
     backspaceRepeatCount = 0
     backspaceStartTimer?.invalidate()
     backspaceTimer?.invalidate()
-    backspaceStartTimer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: false) { [weak self] _ in
+    backspaceStartTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: false) { [weak self] _ in
       self?.startContinuousBackspace()
     }
   }
@@ -388,7 +388,7 @@ extension KeyboardViewController {
     }
   }
 
-  private func startContinuousBackspace(interval: TimeInterval = 0.1) {
+  private func startContinuousBackspace(interval: TimeInterval = 0.08) {
     backspaceTimer?.invalidate()
     backspaceTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
       guard let self = self else { return }
