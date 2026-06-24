@@ -10,9 +10,13 @@ class KeyButton: UIButton {
   var keyValue: String = "";
   var touchAreaInsets: UIEdgeInsets = .zero;
   
-  // MARK: - 3D Glass 효과 레이어 (간소화: bezelLayer 제거)
-  
+  // MARK: - 글래스모피즘 레이어
+  // glassBodyLayer: 반투명 바디의 세로 광택(상단 하이라이트 + 하단 음영).
+  // rimLayer + rimMaskLayer: 가장자리 림 라이트(상단 밝고 하단 어두운 1px 테두리)로
+  //   유리 가장자리를 표현. 원형 곡률 모서리에 정확히 정렬되어 이중 테두리가 생기지 않는다.
   private let glassBodyLayer = CAGradientLayer();
+  private let rimLayer = CAGradientLayer();
+  private let rimMaskLayer = CAShapeLayer();
   
   /// 버튼의 기본 배경색 (하이라이트 해제 시 복구용)
   var normalBackgroundColor: UIColor? {
@@ -43,51 +47,86 @@ class KeyButton: UIButton {
   }
   
   private func setupLayers() {
-    // 글래스 바디 그라데이션 (입체감 + 상단 하이라이트 통합)
-    glassBodyLayer.locations = [0.0, 0.05, 0.4, 1.0];
+    // 글래스 바디 그라데이션 (반투명 광택: 상단 림 → 중앙 투명 → 하단 음영)
+    glassBodyLayer.locations = [0.0, 0.06, 0.5, 1.0];
     glassBodyLayer.startPoint = CGPoint(x: 0.5, y: 0.0);
     glassBodyLayer.endPoint = CGPoint(x: 0.5, y: 1.0);
+    glassBodyLayer.masksToBounds = true;   // 그라데이션을 둥근 모서리로 정확히 클립
     layer.insertSublayer(glassBodyLayer, at: 0);
-    
-    // masksToBounds = true로 설정하여 그라데이션이 cornerRadius를 따르도록 함
+
+    // 가장자리 림 라이트: 세로 그라데이션을 '동심 링' 모양으로 마스킹.
+    // 바깥 모서리를 버튼과 같은 반경으로 두어야 코너에서 곡률이 어긋나지 않는다.
+    rimLayer.locations = [0.0, 0.5, 1.0];
+    rimLayer.startPoint = CGPoint(x: 0.5, y: 0.0);
+    rimLayer.endPoint = CGPoint(x: 0.5, y: 1.0);
+    rimMaskLayer.fillColor = UIColor.black.cgColor;   // 링 영역만 알파로 통과
+    rimMaskLayer.fillRule = .evenOdd;
+    rimLayer.mask = rimMaskLayer;
+    layer.addSublayer(rimLayer);
+
     layer.masksToBounds = false;
-    
+
     updateLayerAppearance();
   }
-  
+
   override func layoutSubviews() {
     super.layoutSubviews();
-    
+
     CATransaction.begin();
     CATransaction.setDisableActions(true);
-    
+
     let radius = layer.cornerRadius;
     glassBodyLayer.frame = bounds;
     glassBodyLayer.cornerRadius = radius;
-    
+
+    // 림 라이트(테두리) 경로 갱신 — 동심 링(바깥 반경 = 버튼 반경, 안쪽 = 반경 - 두께)
+    rimLayer.frame = bounds;
+    rimMaskLayer.frame = bounds;
+    let ringWidth: CGFloat = 1.0;
+    let ringPath = UIBezierPath(roundedRect: bounds, cornerRadius: radius);
+    ringPath.append(UIBezierPath(
+      roundedRect: bounds.insetBy(dx: ringWidth, dy: ringWidth),
+      cornerRadius: max(radius - ringWidth, 0)
+    ));
+    ringPath.usesEvenOddFillRule = true;
+    rimMaskLayer.path = ringPath.cgPath;
+
     // [성능 최적화] shadowPath 명시적 설정으로 GPU 부하 감소
     layer.shadowPath = UIBezierPath(roundedRect: bounds, cornerRadius: radius).cgPath;
-    
+
     CATransaction.commit();
   }
-  
+
   // [메모리 최적화] 글래스 그라데이션 색상을 static으로 캐시하여 매 호출마다 UIColor 재생성 방지
   private static let darkGlassColors: [CGColor] = [
-    UIColor(white: 1.0, alpha: 0.18).cgColor,
-    UIColor(white: 1.0, alpha: 0.08).cgColor,
+    UIColor(white: 1.0, alpha: 0.22).cgColor,
+    UIColor(white: 1.0, alpha: 0.09).cgColor,
     UIColor(white: 1.0, alpha: 0.0).cgColor,
-    UIColor(white: 0.0, alpha: 0.05).cgColor
+    UIColor(white: 0.0, alpha: 0.07).cgColor
   ];
   private static let lightGlassColors: [CGColor] = [
-    UIColor(white: 1.0, alpha: 0.55).cgColor,
-    UIColor(white: 1.0, alpha: 0.35).cgColor,
-    UIColor(white: 1.0, alpha: 0.1).cgColor,
-    UIColor(white: 0.0, alpha: 0.02).cgColor
+    UIColor(white: 1.0, alpha: 0.7).cgColor,
+    UIColor(white: 1.0, alpha: 0.4).cgColor,
+    UIColor(white: 1.0, alpha: 0.12).cgColor,
+    UIColor(white: 0.0, alpha: 0.03).cgColor
+  ];
+
+  // 테두리 림 라이트(상단 밝음 → 하단 어두움)
+  private static let darkRimColors: [CGColor] = [
+    UIColor(white: 1.0, alpha: 0.5).cgColor,
+    UIColor(white: 1.0, alpha: 0.12).cgColor,
+    UIColor(white: 0.0, alpha: 0.22).cgColor
+  ];
+  private static let lightRimColors: [CGColor] = [
+    UIColor(white: 1.0, alpha: 0.95).cgColor,
+    UIColor(white: 1.0, alpha: 0.45).cgColor,
+    UIColor(white: 0.0, alpha: 0.10).cgColor
   ];
 
   func updateLayerAppearance() {
     let isDark = traitCollection.userInterfaceStyle == .dark;
     glassBodyLayer.colors = isDark ? KeyButton.darkGlassColors : KeyButton.lightGlassColors;
+    rimLayer.colors = isDark ? KeyButton.darkRimColors : KeyButton.lightRimColors;
     backgroundColor = normalBackgroundColor;
   }
   

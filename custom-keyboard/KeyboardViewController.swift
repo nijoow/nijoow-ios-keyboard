@@ -108,7 +108,6 @@ class KeyboardViewController: UIInputViewController {
   private(set) var specialGlassColor: UIColor = .clear;
   private(set) var activeGlassColor: UIColor = .clear;
   private(set) var activeTextColor: UIColor = .white;
-  private(set) var keyBorderColor: CGColor = UIColor.clear.cgColor;
   private(set) var keyTextColor: UIColor = .white;
   private(set) var specialTextColor: UIColor = .gray;
 
@@ -116,20 +115,17 @@ class KeyboardViewController: UIInputViewController {
   func refreshThemeColors() {
     let dark = isDarkMode;
     keyGlassColor = dark
-      ? UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.55)
-      : UIColor(white: 1.0, alpha: 0.65);
+      ? UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.38)
+      : UIColor(white: 1.0, alpha: 0.48);
     specialGlassColor = dark
-      ? UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.30)
-      : UIColor(white: 0.9, alpha: 0.45);
+      ? UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.18)
+      : UIColor(white: 0.9, alpha: 0.32);
     activeGlassColor = dark
       ? UIColor(white: 0.45, alpha: 0.85)
       : UIColor(white: 0.75, alpha: 0.85);
     keyTextColor = dark ? .white : UIColor(white: 0.1, alpha: 1.0);
     specialTextColor = dark ? UIColor(white: 0.75, alpha: 1.0) : UIColor(white: 0.35, alpha: 1.0);
     activeTextColor = keyTextColor;
-    keyBorderColor = dark
-      ? UIColor(white: 1.0, alpha: 0.22).cgColor
-      : UIColor(white: 0.0, alpha: 0.12).cgColor;
   }
 
   // MARK: - Lifecycle

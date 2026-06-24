@@ -357,12 +357,11 @@ extension KeyboardViewController {
     btn.normalBackgroundColor = btn.backgroundColor
     
     btn.layer.cornerRadius = KeyboardConstants.CORNER_RADIUS;
-    btn.layer.borderWidth = 0.5;
-    btn.layer.borderColor = keyBorderColor;
+    // 단색 보더 대신 KeyButton의 림 라이트로 가장자리를 표현 (글래스 느낌)
     btn.layer.shadowColor = UIColor.black.cgColor;
-    btn.layer.shadowOffset = CGSize(width: 0, height: 2);
-    btn.layer.shadowOpacity = isDarkMode ? 0.35 : 0.1;
-    btn.layer.shadowRadius = isDarkMode ? 4 : 2;
+    btn.layer.shadowOffset = CGSize(width: 0, height: 3);
+    btn.layer.shadowOpacity = isDarkMode ? 0.30 : 0.12;
+    btn.layer.shadowRadius = isDarkMode ? 6 : 3;
     btn.isExclusiveTouch = false;
     btn.touchDelegate = self;
     
@@ -451,11 +450,10 @@ extension KeyboardViewController {
         }
       }
       
-      btn.layer.borderColor = keyBorderColor;
-      btn.layer.shadowOpacity = Float(isDarkMode ? 0.35 : 0.1);
-      btn.layer.shadowRadius = isDarkMode ? 4 : 2;
-      
-      // 3D 글래스 레이어 업데이트 (중앙 집중식 관리)
+      btn.layer.shadowOpacity = Float(isDarkMode ? 0.30 : 0.12);
+      btn.layer.shadowRadius = isDarkMode ? 6 : 3;
+
+      // 글래스 레이어(바디 광택 + 림 라이트) 업데이트 (중앙 집중식 관리)
       btn.updateLayerAppearance();
     }
     

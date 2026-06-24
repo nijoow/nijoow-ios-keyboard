@@ -71,16 +71,6 @@
 			path = keyboard;
 			sourceTree = "<group>";
 		};
-		F15211342F8632F1006DBDF4 /* keyboardTests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = keyboardTests;
-			sourceTree = "<group>";
-		};
-		F152113E2F8632F1006DBDF4 /* keyboardUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = keyboardUITests;
-			sourceTree = "<group>";
-		};
 		F15211532F86337B006DBDF4 /* custom-keyboard */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
@@ -127,8 +117,6 @@
 			isa = PBXGroup;
 			children = (
 				F15211262F8632EF006DBDF4 /* keyboard */,
-				F15211342F8632F1006DBDF4 /* keyboardTests */,
-				F152113E2F8632F1006DBDF4 /* keyboardUITests */,
 				F15211532F86337B006DBDF4 /* custom-keyboard */,
 				F15211252F8632EF006DBDF4 /* Products */,
 			);
@@ -185,9 +173,6 @@
 			dependencies = (
 				F15211332F8632F1006DBDF4 /* PBXTargetDependency */,
 			);
-			fileSystemSynchronizedGroups = (
-				F15211342F8632F1006DBDF4 /* keyboardTests */,
-			);
 			name = keyboardTests;
 			packageProductDependencies = (
 			);
@@ -207,9 +192,6 @@
 			);
 			dependencies = (
 				F152113D2F8632F1006DBDF4 /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				F152113E2F8632F1006DBDF4 /* keyboardUITests */,
 			);
 			name = keyboardUITests;
 			packageProductDependencies = (
