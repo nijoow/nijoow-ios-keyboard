@@ -36,6 +36,10 @@ class KeyboardViewController: UIInputViewController {
   // 키보드 전체 높이를 확정하는 제약 (priority 999). 점프 방지의 핵심.
   var keyboardHeightConstraint: NSLayoutConstraint?
 
+  // 라이트모드 배경 그라데이션. 시스템 균일 회색을 덮어 반투명 키가
+  // 위치별 명암 변화를 머금게 해 '바둑돌'이 아닌 유리 느낌을 살린다.
+  private let backgroundGradient = CAGradientLayer()
+
   // MARK: - 적응형 레이아웃 메트릭 (기기/방향별)
   //
   // 행 높이·모서리 반경·폰트를 기기(아이폰/아이패드)와 방향(세로/가로)에 맞춰 산출한다.
@@ -176,6 +180,20 @@ class KeyboardViewController: UIInputViewController {
     keyTextColor = dark ? .white : UIColor(white: 0.1, alpha: 1.0);
     specialTextColor = dark ? UIColor(white: 0.75, alpha: 1.0) : UIColor(white: 0.35, alpha: 1.0);
     activeTextColor = keyTextColor;
+
+    // 배경 그라데이션: 다크모드는 시스템 어두운 배경을 그대로 쓰도록 투명,
+    // 라이트모드는 위→아래로 옅은 쿨톤 그라데이션을 깔아 유리 느낌을 살린다.
+    CATransaction.begin();
+    CATransaction.setDisableActions(true);
+    if dark {
+      backgroundGradient.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor];
+    } else {
+      backgroundGradient.colors = [
+        UIColor(red: 0.94, green: 0.95, blue: 0.97, alpha: 1.0).cgColor,
+        UIColor(red: 0.80, green: 0.82, blue: 0.87, alpha: 1.0).cgColor
+      ];
+    }
+    CATransaction.commit();
   }
 
   // MARK: - Lifecycle
@@ -193,6 +211,11 @@ class KeyboardViewController: UIInputViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
+    // 배경 그라데이션을 가장 뒤(키 아래)에 깔고 색상 초기화
+    backgroundGradient.startPoint = CGPoint(x: 0.5, y: 0.0)
+    backgroundGradient.endPoint = CGPoint(x: 0.5, y: 1.0)
+    view.layer.insertSublayer(backgroundGradient, at: 0)
+
     // 테마 색상 초기화
     refreshThemeColors()
 
@@ -206,6 +229,15 @@ class KeyboardViewController: UIInputViewController {
   @objc private func themeDidChange() {
     refreshThemeColors()
     rebuildKeyboard()
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    // 배경 그라데이션을 뷰 크기에 맞춤 (회전·등장 시 갱신)
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    backgroundGradient.frame = view.bounds
+    CATransaction.commit()
   }
 
   // MARK: - 레이아웃 설정
