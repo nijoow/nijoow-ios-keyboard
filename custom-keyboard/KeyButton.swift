@@ -104,11 +104,13 @@ class KeyButton: UIButton {
     UIColor(white: 1.0, alpha: 0.0).cgColor,
     UIColor(white: 0.0, alpha: 0.07).cgColor
   ];
+  // 클리어 글래스: 도밍(볼록 광택)을 줄여 평평한 유리로. 상단 광택을 낮추고
+  // 하단 어두운 스톱을 제거해 '위흰색→아래회색' 그라데이션 느낌을 없앤다.
   private static let lightGlassColors: [CGColor] = [
-    UIColor(white: 1.0, alpha: 0.7).cgColor,
-    UIColor(white: 1.0, alpha: 0.4).cgColor,
-    UIColor(white: 1.0, alpha: 0.12).cgColor,
-    UIColor(white: 0.0, alpha: 0.03).cgColor
+    UIColor(white: 1.0, alpha: 0.40).cgColor,
+    UIColor(white: 1.0, alpha: 0.16).cgColor,
+    UIColor(white: 1.0, alpha: 0.05).cgColor,
+    UIColor(white: 1.0, alpha: 0.0).cgColor
   ];
 
   // 테두리 림 라이트(상단 밝음 → 하단 어두움)
@@ -118,9 +120,9 @@ class KeyButton: UIButton {
     UIColor(white: 0.0, alpha: 0.22).cgColor
   ];
   private static let lightRimColors: [CGColor] = [
-    UIColor(white: 1.0, alpha: 0.95).cgColor,
-    UIColor(white: 1.0, alpha: 0.45).cgColor,
-    UIColor(white: 0.0, alpha: 0.10).cgColor
+    UIColor(white: 1.0, alpha: 0.90).cgColor,
+    UIColor(white: 1.0, alpha: 0.35).cgColor,
+    UIColor(white: 0.0, alpha: 0.05).cgColor
   ];
 
   func updateLayerAppearance() {
