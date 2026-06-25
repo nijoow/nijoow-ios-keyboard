@@ -36,9 +36,12 @@ class KeyboardViewController: UIInputViewController {
   // 키보드 전체 높이를 확정하는 제약 (priority 999). 점프 방지의 핵심.
   var keyboardHeightConstraint: NSLayoutConstraint?
 
-  // 라이트모드 배경 그라데이션. 시스템 균일 회색을 덮어 반투명 키가
-  // 위치별 명암 변화를 머금게 해 '바둑돌'이 아닌 유리 느낌을 살린다.
+  // 라이트모드 배경. 시스템 균일 회색을 덮어 반투명 키가 색감/명암을 머금게 해
+  // '바둑돌'이 아닌 유리(클리어 글래스) 느낌을 살린다.
+  // backgroundGradient: 베이스 쿨톤 그라데이션, glassBlob1/2: 흐릿한 색 번짐.
   private let backgroundGradient = CAGradientLayer()
+  private let glassBlob1 = CAGradientLayer()
+  private let glassBlob2 = CAGradientLayer()
 
   // MARK: - 적응형 레이아웃 메트릭 (기기/방향별)
   //
@@ -168,29 +171,41 @@ class KeyboardViewController: UIInputViewController {
   /// 테마 색상을 현재 다크모드 상태에 맞게 한 번에 갱신
   func refreshThemeColors() {
     let dark = isDarkMode;
+    // 클리어 글래스: 라이트모드 키 채움을 크게 낮춰 뒤 배경(색 그라데이션/번짐)이 비치게 한다.
     keyGlassColor = dark
       ? UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.38)
-      : UIColor(white: 1.0, alpha: 0.48);
+      : UIColor(white: 1.0, alpha: 0.22);
     specialGlassColor = dark
       ? UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.18)
-      : UIColor(white: 0.9, alpha: 0.32);
+      : UIColor(white: 1.0, alpha: 0.12);
     activeGlassColor = dark
       ? UIColor(white: 0.45, alpha: 0.85)
-      : UIColor(white: 0.75, alpha: 0.85);
+      : UIColor(white: 0.78, alpha: 0.80);
     keyTextColor = dark ? .white : UIColor(white: 0.1, alpha: 1.0);
-    specialTextColor = dark ? UIColor(white: 0.75, alpha: 1.0) : UIColor(white: 0.35, alpha: 1.0);
+    specialTextColor = dark ? UIColor(white: 0.75, alpha: 1.0) : UIColor(white: 0.32, alpha: 1.0);
     activeTextColor = keyTextColor;
 
-    // 배경 그라데이션: 다크모드는 시스템 어두운 배경을 그대로 쓰도록 투명,
-    // 라이트모드는 위→아래로 옅은 쿨톤 그라데이션을 깔아 유리 느낌을 살린다.
+    // 배경: 다크모드는 시스템 어두운 배경을 그대로 쓰도록 투명.
+    // 라이트모드는 옅은 쿨톤 그라데이션 + 흐릿한 색 번짐(블루/핑크)을 깔아
+    // 반투명 키가 색감을 머금어 유리처럼 보이게 한다.
     CATransaction.begin();
     CATransaction.setDisableActions(true);
     if dark {
       backgroundGradient.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor];
+      glassBlob1.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor];
+      glassBlob2.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor];
     } else {
       backgroundGradient.colors = [
-        UIColor(red: 0.94, green: 0.95, blue: 0.97, alpha: 1.0).cgColor,
-        UIColor(red: 0.80, green: 0.82, blue: 0.87, alpha: 1.0).cgColor
+        UIColor(red: 0.93, green: 0.95, blue: 0.98, alpha: 1.0).cgColor,
+        UIColor(red: 0.82, green: 0.85, blue: 0.90, alpha: 1.0).cgColor
+      ];
+      glassBlob1.colors = [
+        UIColor(red: 0.62, green: 0.78, blue: 0.96, alpha: 0.40).cgColor,
+        UIColor(red: 0.62, green: 0.78, blue: 0.96, alpha: 0.0).cgColor
+      ];
+      glassBlob2.colors = [
+        UIColor(red: 0.97, green: 0.78, blue: 0.88, alpha: 0.40).cgColor,
+        UIColor(red: 0.97, green: 0.78, blue: 0.88, alpha: 0.0).cgColor
       ];
     }
     CATransaction.commit();
@@ -211,10 +226,18 @@ class KeyboardViewController: UIInputViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    // 배경 그라데이션을 가장 뒤(키 아래)에 깔고 색상 초기화
+    // 배경 레이어들을 가장 뒤(키 아래)에 깐다: 베이스 그라데이션 → 색 번짐 2개 순서
     backgroundGradient.startPoint = CGPoint(x: 0.5, y: 0.0)
     backgroundGradient.endPoint = CGPoint(x: 0.5, y: 1.0)
     view.layer.insertSublayer(backgroundGradient, at: 0)
+
+    for blob in [glassBlob1, glassBlob2] {
+      blob.type = .radial
+      blob.startPoint = CGPoint(x: 0.5, y: 0.5)
+      blob.endPoint = CGPoint(x: 1.0, y: 1.0)
+    }
+    view.layer.insertSublayer(glassBlob1, above: backgroundGradient)
+    view.layer.insertSublayer(glassBlob2, above: glassBlob1)
 
     // 테마 색상 초기화
     refreshThemeColors()
@@ -233,10 +256,14 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    // 배경 그라데이션을 뷰 크기에 맞춤 (회전·등장 시 갱신)
+    // 배경 레이어들을 뷰 크기에 맞춤 (회전·등장 시 갱신)
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     backgroundGradient.frame = view.bounds
+    let w = view.bounds.width, h = view.bounds.height
+    // 색 번짐: 좌상단(블루), 우하단(핑크)에 부드럽게 퍼지도록 배치
+    glassBlob1.frame = CGRect(x: -w * 0.25, y: -h * 0.35, width: w * 0.95, height: h * 1.2)
+    glassBlob2.frame = CGRect(x: w * 0.35, y: h * 0.15, width: w * 0.95, height: h * 1.25)
     CATransaction.commit()
   }
 
