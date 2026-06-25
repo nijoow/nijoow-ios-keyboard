@@ -66,7 +66,9 @@ extension KeyboardViewController {
       c.isActive = true
     } else {
       let c = view.heightAnchor.constraint(equalToConstant: desiredKeyboardHeight)
-      c.priority = .required
+      // 시스템이 inputView에 거는 높이 제약과 충돌해 등장/전환 시 레이아웃이 꼬이는 것을
+      // 막기 위해 required(1000)가 아닌 999로 건다. (Apple 권장)
+      c.priority = UILayoutPriority(999)
       c.isActive = true
       keyboardHeightConstraint = c
     }
