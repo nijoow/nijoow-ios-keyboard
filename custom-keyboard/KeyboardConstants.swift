@@ -44,8 +44,8 @@ struct KeyboardConstants {
   // MARK: - 레이아웃 수치
   static let UTIL_ROW_H: CGFloat = 34
   static let KEY_FONT_SIZE: CGFloat = 20
-  static let NUMBER_ROW_H: CGFloat = 38
-  static let MAIN_KEY_H: CGFloat = 42
+  static let NUMBER_ROW_H: CGFloat = 42
+  static let MAIN_KEY_H: CGFloat = 46
   static let BOTTOM_ROW_H: CGFloat = 38
   static let CORNER_RADIUS: CGFloat = 12
 }
