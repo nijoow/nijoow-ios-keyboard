@@ -72,9 +72,9 @@ class KeyboardViewController: UIInputViewController {
                              cornerRadius: 14, utilCornerRadius: 11, keyFontSize: 24)
       }
     } else if isLandscapeScreen {
-      // 아이폰 가로: 화면을 과하게 덮지 않도록 행 높이를 줄여 컴팩트하게
-      return LayoutMetrics(utilRowH: 24, numberRowH: 26, mainKeyH: 26, bottomRowH: 26,
-                           cornerRadius: 9, utilCornerRadius: 6, keyFontSize: 17)
+      // 아이폰 가로: 세로(기존 고정 높이)와 컴팩트의 중간 정도로
+      return LayoutMetrics(utilRowH: 30, numberRowH: 32, mainKeyH: 34, bottomRowH: 32,
+                           cornerRadius: 10, utilCornerRadius: 7, keyFontSize: 18)
     } else {
       // 아이폰 세로 (기존 값 유지)
       return LayoutMetrics(utilRowH: KeyboardConstants.UTIL_ROW_H,
