@@ -57,10 +57,14 @@ class KeyboardViewController: UIInputViewController {
     var keyFontSize: CGFloat
   }
 
-  /// 화면이 가로 방향인지 (키보드 익스텐션에서는 UIScreen 기준이 가장 신뢰성 높음)
+  /// 화면이 가로 방향인지. (UIScreen.main은 iOS 26에서 deprecated이므로 사용하지 않음)
+  /// 윈도우가 붙어 있으면 windowScene의 인터페이스 방향을, 아직 없으면(빌드 초기)
+  /// 트레잇의 세로 사이즈클래스로 추정한다(아이폰 가로 = verticalSizeClass compact).
   var isLandscapeScreen: Bool {
-    let s = UIScreen.main.bounds.size
-    return s.width > s.height
+    if let scene = view.window?.windowScene {
+      return scene.interfaceOrientation.isLandscape
+    }
+    return traitCollection.verticalSizeClass == .compact
   }
 
   /// 현재 기기가 아이패드인지
@@ -171,13 +175,14 @@ class KeyboardViewController: UIInputViewController {
   /// 테마 색상을 현재 다크모드 상태에 맞게 한 번에 갱신
   func refreshThemeColors() {
     let dark = isDarkMode;
-    // 클리어 글래스: 라이트모드 키 채움을 크게 낮춰 뒤 배경(색 그라데이션/번짐)이 비치게 한다.
+    // 라이트모드: 순수 투명은 밝은 배경에서 흐려 보이므로(washed), 옅은 쿨톤 틴트를
+    // 넣은 프로스트 글래스로. 존재감 + 유리색을 주되 도밍은 없앤 평평한 타일.
     keyGlassColor = dark
       ? UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.38)
-      : UIColor(white: 1.0, alpha: 0.18);
+      : UIColor(red: 0.91, green: 0.94, blue: 0.99, alpha: 0.52);
     specialGlassColor = dark
       ? UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.18)
-      : UIColor(white: 1.0, alpha: 0.10);
+      : UIColor(red: 0.82, green: 0.86, blue: 0.93, alpha: 0.55);
     activeGlassColor = dark
       ? UIColor(white: 0.45, alpha: 0.85)
       : UIColor(white: 0.78, alpha: 0.80);
@@ -200,12 +205,12 @@ class KeyboardViewController: UIInputViewController {
         UIColor(red: 0.82, green: 0.85, blue: 0.90, alpha: 1.0).cgColor
       ];
       glassBlob1.colors = [
-        UIColor(red: 0.62, green: 0.78, blue: 0.96, alpha: 0.40).cgColor,
+        UIColor(red: 0.62, green: 0.78, blue: 0.96, alpha: 0.22).cgColor,
         UIColor(red: 0.62, green: 0.78, blue: 0.96, alpha: 0.0).cgColor
       ];
       glassBlob2.colors = [
-        UIColor(red: 0.97, green: 0.78, blue: 0.88, alpha: 0.40).cgColor,
-        UIColor(red: 0.97, green: 0.78, blue: 0.88, alpha: 0.0).cgColor
+        UIColor(red: 0.95, green: 0.80, blue: 0.90, alpha: 0.20).cgColor,
+        UIColor(red: 0.95, green: 0.80, blue: 0.90, alpha: 0.0).cgColor
       ];
     }
     CATransaction.commit();

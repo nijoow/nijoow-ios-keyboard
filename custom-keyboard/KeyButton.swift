@@ -104,11 +104,11 @@ class KeyButton: UIButton {
     UIColor(white: 1.0, alpha: 0.0).cgColor,
     UIColor(white: 0.0, alpha: 0.07).cgColor
   ];
-  // 클리어 글래스: 표면 흰색 광택을 거의 제거해 배경 색이 키를 통과해 비치게 한다.
-  // 윗부분에만 아주 옅은 광택만 남기고 나머지는 투명.
+  // 프로스트 글래스: 상단에만 옅은 광택을 남겨 도밍 없이 평평한 유리 표면을 만든다.
+  // (틴트/존재감은 keyGlassColor 채움이 담당)
   private static let lightGlassColors: [CGColor] = [
-    UIColor(white: 1.0, alpha: 0.20).cgColor,
-    UIColor(white: 1.0, alpha: 0.04).cgColor,
+    UIColor(white: 1.0, alpha: 0.28).cgColor,
+    UIColor(white: 1.0, alpha: 0.06).cgColor,
     UIColor(white: 1.0, alpha: 0.0).cgColor,
     UIColor(white: 1.0, alpha: 0.0).cgColor
   ];
@@ -119,10 +119,12 @@ class KeyButton: UIButton {
     UIColor(white: 1.0, alpha: 0.12).cgColor,
     UIColor(white: 0.0, alpha: 0.22).cgColor
   ];
+  // 라이트모드 베벨: 밝은 배경에서 키가 묻히지 않도록 상단은 밝게, 하단 엣지는
+  // 약간의 어두움으로 또렷이 분리한다.
   private static let lightRimColors: [CGColor] = [
-    UIColor(white: 1.0, alpha: 0.90).cgColor,
-    UIColor(white: 1.0, alpha: 0.35).cgColor,
-    UIColor(white: 0.0, alpha: 0.05).cgColor
+    UIColor(white: 1.0, alpha: 0.92).cgColor,
+    UIColor(white: 1.0, alpha: 0.30).cgColor,
+    UIColor(white: 0.0, alpha: 0.13).cgColor
   ];
 
   func updateLayerAppearance() {
