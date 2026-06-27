@@ -174,10 +174,10 @@ class KeyboardViewController: UIInputViewController {
     // 클리어 글래스: 라이트모드 키 채움을 크게 낮춰 뒤 배경(색 그라데이션/번짐)이 비치게 한다.
     keyGlassColor = dark
       ? UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.38)
-      : UIColor(white: 1.0, alpha: 0.22);
+      : UIColor(white: 1.0, alpha: 0.18);
     specialGlassColor = dark
       ? UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.18)
-      : UIColor(white: 1.0, alpha: 0.12);
+      : UIColor(white: 1.0, alpha: 0.10);
     activeGlassColor = dark
       ? UIColor(white: 0.45, alpha: 0.85)
       : UIColor(white: 0.78, alpha: 0.80);

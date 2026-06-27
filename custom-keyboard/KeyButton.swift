@@ -104,12 +104,12 @@ class KeyButton: UIButton {
     UIColor(white: 1.0, alpha: 0.0).cgColor,
     UIColor(white: 0.0, alpha: 0.07).cgColor
   ];
-  // 클리어 글래스: 도밍(볼록 광택)을 줄여 평평한 유리로. 상단 광택을 낮추고
-  // 하단 어두운 스톱을 제거해 '위흰색→아래회색' 그라데이션 느낌을 없앤다.
+  // 클리어 글래스: 표면 흰색 광택을 거의 제거해 배경 색이 키를 통과해 비치게 한다.
+  // 윗부분에만 아주 옅은 광택만 남기고 나머지는 투명.
   private static let lightGlassColors: [CGColor] = [
-    UIColor(white: 1.0, alpha: 0.40).cgColor,
-    UIColor(white: 1.0, alpha: 0.16).cgColor,
-    UIColor(white: 1.0, alpha: 0.05).cgColor,
+    UIColor(white: 1.0, alpha: 0.20).cgColor,
+    UIColor(white: 1.0, alpha: 0.04).cgColor,
+    UIColor(white: 1.0, alpha: 0.0).cgColor,
     UIColor(white: 1.0, alpha: 0.0).cgColor
   ];
 
