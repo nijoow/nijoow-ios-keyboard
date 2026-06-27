@@ -104,33 +104,17 @@ class KeyButton: UIButton {
     UIColor(white: 1.0, alpha: 0.0).cgColor,
     UIColor(white: 0.0, alpha: 0.07).cgColor
   ];
-  // 프로스트 글래스: 상단에만 옅은 광택을 남겨 도밍 없이 평평한 유리 표면을 만든다.
-  // (틴트/존재감은 keyGlassColor 채움이 담당)
-  private static let lightGlassColors: [CGColor] = [
-    UIColor(white: 1.0, alpha: 0.28).cgColor,
-    UIColor(white: 1.0, alpha: 0.06).cgColor,
-    UIColor(white: 1.0, alpha: 0.0).cgColor,
-    UIColor(white: 1.0, alpha: 0.0).cgColor
-  ];
-
   // 테두리 림 라이트(상단 밝음 → 하단 어두움)
   private static let darkRimColors: [CGColor] = [
     UIColor(white: 1.0, alpha: 0.5).cgColor,
     UIColor(white: 1.0, alpha: 0.12).cgColor,
     UIColor(white: 0.0, alpha: 0.22).cgColor
   ];
-  // 라이트모드 베벨: 밝은 배경에서 키가 묻히지 않도록 상단은 밝게, 하단 엣지는
-  // 약간의 어두움으로 또렷이 분리한다.
-  private static let lightRimColors: [CGColor] = [
-    UIColor(white: 1.0, alpha: 0.92).cgColor,
-    UIColor(white: 1.0, alpha: 0.30).cgColor,
-    UIColor(white: 0.0, alpha: 0.13).cgColor
-  ];
 
   func updateLayerAppearance() {
-    let isDark = traitCollection.userInterfaceStyle == .dark;
-    glassBodyLayer.colors = isDark ? KeyButton.darkGlassColors : KeyButton.lightGlassColors;
-    rimLayer.colors = isDark ? KeyButton.darkRimColors : KeyButton.lightRimColors;
+    // 라이트모드 제거: 항상 다크 글래스/림 색상
+    glassBodyLayer.colors = KeyButton.darkGlassColors;
+    rimLayer.colors = KeyButton.darkRimColors;
     backgroundColor = normalBackgroundColor;
   }
   
@@ -173,8 +157,6 @@ class KeyButton: UIButton {
   }
   
   private func updateHighlightState() {
-    let isDark = traitCollection.userInterfaceStyle == .dark;
-
     UIView.animate(withDuration: 0.12, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction], animations: {
       if self.dragActive {
         // 드래그 중: 또렷하게 살짝 눌린 강조 상태를 유지 (터치가 취소돼도 풀리지 않음)
@@ -183,10 +165,10 @@ class KeyButton: UIButton {
         self.alpha = 1.0;
         self.backgroundColor = self.dragActiveColor ?? self.normalBackgroundColor;
       } else if self.isHighlighted {
+        // 다크 통일: 눌림 시 살짝 투명하게
         self.transform = CGAffineTransform(scaleX: 0.92, y: 0.92);
         self.glassBodyLayer.opacity = 0.5;
-        if isDark { self.alpha = 0.7; }
-        else { self.backgroundColor = UIColor(white: 0.0, alpha: 0.15); }
+        self.alpha = 0.7;
       } else {
         self.transform = .identity;
         self.glassBodyLayer.opacity = 1.0;

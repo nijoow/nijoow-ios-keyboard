@@ -36,13 +36,6 @@ class KeyboardViewController: UIInputViewController {
   // 키보드 전체 높이를 확정하는 제약 (priority 999). 점프 방지의 핵심.
   var keyboardHeightConstraint: NSLayoutConstraint?
 
-  // 라이트모드 배경. 시스템 균일 회색을 덮어 반투명 키가 색감/명암을 머금게 해
-  // '바둑돌'이 아닌 유리(클리어 글래스) 느낌을 살린다.
-  // backgroundGradient: 베이스 쿨톤 그라데이션, glassBlob1/2: 흐릿한 색 번짐.
-  private let backgroundGradient = CAGradientLayer()
-  private let glassBlob1 = CAGradientLayer()
-  private let glassBlob2 = CAGradientLayer()
-
   // MARK: - 적응형 레이아웃 메트릭 (기기/방향별)
   //
   // 행 높이·모서리 반경·폰트를 기기(아이폰/아이패드)와 방향(세로/가로)에 맞춰 산출한다.
@@ -156,11 +149,8 @@ class KeyboardViewController: UIInputViewController {
   var wasCustom = false
   var wasSymbol = false
 
-  var isDarkMode: Bool {
-    if textDocumentProxy.keyboardAppearance == .dark { return true }
-    if textDocumentProxy.keyboardAppearance == .light { return false }
-    return traitCollection.userInterfaceStyle == .dark
-  }
+  // 라이트모드 제거: 호스트 앱 외관과 무관하게 항상 다크 색상으로 통일한다.
+  var isDarkMode: Bool { return true }
 
 
   // MARK: - 색상 테마 (캐시됨)
@@ -174,46 +164,13 @@ class KeyboardViewController: UIInputViewController {
 
   /// 테마 색상을 현재 다크모드 상태에 맞게 한 번에 갱신
   func refreshThemeColors() {
-    let dark = isDarkMode;
-    // 라이트모드: 순수 투명은 밝은 배경에서 흐려 보이므로(washed), 옅은 쿨톤 틴트를
-    // 넣은 프로스트 글래스로. 존재감 + 유리색을 주되 도밍은 없앤 평평한 타일.
-    keyGlassColor = dark
-      ? UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.38)
-      : UIColor(red: 0.91, green: 0.94, blue: 0.99, alpha: 0.52);
-    specialGlassColor = dark
-      ? UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.18)
-      : UIColor(red: 0.82, green: 0.86, blue: 0.93, alpha: 0.55);
-    activeGlassColor = dark
-      ? UIColor(white: 0.45, alpha: 0.85)
-      : UIColor(white: 0.78, alpha: 0.80);
-    keyTextColor = dark ? .white : UIColor(white: 0.1, alpha: 1.0);
-    specialTextColor = dark ? UIColor(white: 0.75, alpha: 1.0) : UIColor(white: 0.32, alpha: 1.0);
+    // 라이트모드 제거: 항상 다크 색상으로 통일
+    keyGlassColor = UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.38);
+    specialGlassColor = UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.18);
+    activeGlassColor = UIColor(white: 0.45, alpha: 0.85);
+    keyTextColor = .white;
+    specialTextColor = UIColor(white: 0.75, alpha: 1.0);
     activeTextColor = keyTextColor;
-
-    // 배경: 다크모드는 시스템 어두운 배경을 그대로 쓰도록 투명.
-    // 라이트모드는 옅은 쿨톤 그라데이션 + 흐릿한 색 번짐(블루/핑크)을 깔아
-    // 반투명 키가 색감을 머금어 유리처럼 보이게 한다.
-    CATransaction.begin();
-    CATransaction.setDisableActions(true);
-    if dark {
-      backgroundGradient.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor];
-      glassBlob1.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor];
-      glassBlob2.colors = [UIColor.clear.cgColor, UIColor.clear.cgColor];
-    } else {
-      backgroundGradient.colors = [
-        UIColor(red: 0.93, green: 0.95, blue: 0.98, alpha: 1.0).cgColor,
-        UIColor(red: 0.82, green: 0.85, blue: 0.90, alpha: 1.0).cgColor
-      ];
-      glassBlob1.colors = [
-        UIColor(red: 0.62, green: 0.78, blue: 0.96, alpha: 0.22).cgColor,
-        UIColor(red: 0.62, green: 0.78, blue: 0.96, alpha: 0.0).cgColor
-      ];
-      glassBlob2.colors = [
-        UIColor(red: 0.95, green: 0.80, blue: 0.90, alpha: 0.20).cgColor,
-        UIColor(red: 0.95, green: 0.80, blue: 0.90, alpha: 0.0).cgColor
-      ];
-    }
-    CATransaction.commit();
   }
 
   // MARK: - Lifecycle
@@ -231,18 +188,8 @@ class KeyboardViewController: UIInputViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    // 배경 레이어들을 가장 뒤(키 아래)에 깐다: 베이스 그라데이션 → 색 번짐 2개 순서
-    backgroundGradient.startPoint = CGPoint(x: 0.5, y: 0.0)
-    backgroundGradient.endPoint = CGPoint(x: 0.5, y: 1.0)
-    view.layer.insertSublayer(backgroundGradient, at: 0)
-
-    for blob in [glassBlob1, glassBlob2] {
-      blob.type = .radial
-      blob.startPoint = CGPoint(x: 0.5, y: 0.5)
-      blob.endPoint = CGPoint(x: 1.0, y: 1.0)
-    }
-    view.layer.insertSublayer(glassBlob1, above: backgroundGradient)
-    view.layer.insertSublayer(glassBlob2, above: glassBlob1)
+    // 다크 통일: 다크 키 글래스가 잘 보이도록 어두운 배경으로 고정 (라이트 호스트에서도 동일)
+    view.backgroundColor = UIColor(red: 0.09, green: 0.09, blue: 0.10, alpha: 1.0)
 
     // 테마 색상 초기화
     refreshThemeColors()
@@ -257,19 +204,6 @@ class KeyboardViewController: UIInputViewController {
   @objc private func themeDidChange() {
     refreshThemeColors()
     rebuildKeyboard()
-  }
-
-  override func viewDidLayoutSubviews() {
-    super.viewDidLayoutSubviews()
-    // 배경 레이어들을 뷰 크기에 맞춤 (회전·등장 시 갱신)
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    backgroundGradient.frame = view.bounds
-    let w = view.bounds.width, h = view.bounds.height
-    // 색 번짐: 좌상단(블루), 우하단(핑크)에 부드럽게 퍼지도록 배치
-    glassBlob1.frame = CGRect(x: -w * 0.25, y: -h * 0.35, width: w * 0.95, height: h * 1.2)
-    glassBlob2.frame = CGRect(x: w * 0.35, y: h * 0.15, width: w * 0.95, height: h * 1.25)
-    CATransaction.commit()
   }
 
   // MARK: - 레이아웃 설정
