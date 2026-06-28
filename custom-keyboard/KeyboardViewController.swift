@@ -55,7 +55,11 @@ class KeyboardViewController: UIInputViewController {
   /// 트레잇의 세로 사이즈클래스로 추정한다(아이폰 가로 = verticalSizeClass compact).
   var isLandscapeScreen: Bool {
     if let scene = view.window?.windowScene {
-      return scene.interfaceOrientation.isLandscape
+      if #available(iOS 26.0, *) {
+        return scene.effectiveGeometry.interfaceOrientation.isLandscape
+      } else {
+        return scene.interfaceOrientation.isLandscape
+      }
     }
     return traitCollection.verticalSizeClass == .compact
   }
@@ -187,9 +191,6 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewDidLoad() {
     super.viewDidLoad()
-
-    // 다크 통일: 다크 키 글래스가 잘 보이도록 어두운 배경으로 고정 (라이트 호스트에서도 동일)
-    view.backgroundColor = UIColor(red: 0.09, green: 0.09, blue: 0.10, alpha: 1.0)
 
     // 테마 색상 초기화
     refreshThemeColors()
