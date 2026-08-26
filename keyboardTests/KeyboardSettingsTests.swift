@@ -46,6 +46,49 @@ final class KeyboardSettingsTests: XCTestCase {
     XCTAssertEqual(color.blue, 1)
   }
 
+  func testDecodedColorComponentsAreAlsoClamped() throws {
+    let encoded = Data(#"{"red":-2,"green":0.4,"blue":3}"#.utf8)
+
+    let decoded = try JSONDecoder().decode(KeyboardRGBA.self, from: encoded)
+
+    XCTAssertEqual(decoded, KeyboardRGBA(red: 0, green: 0.4, blue: 1))
+  }
+
+  func testUnknownFutureFieldOnlyFallsBackThatField() throws {
+    let encoded = Data(
+      #"{"schemaVersion":99,"theme":"future-theme","customAccent":{"red":0.1,"green":0.2,"blue":0.3},"height":"large","hapticsEnabled":true}"#.utf8)
+
+    let decoded = try JSONDecoder().decode(KeyboardSettings.self, from: encoded)
+
+    XCTAssertEqual(decoded.schemaVersion, KeyboardSettings.currentSchemaVersion)
+    XCTAssertEqual(decoded.theme, .obsidian)
+    XCTAssertEqual(decoded.customAccent, KeyboardRGBA(red: 0.1, green: 0.2, blue: 0.3))
+    XCTAssertEqual(decoded.height, .large)
+    XCTAssertTrue(decoded.hapticsEnabled)
+  }
+
+  func testInvalidFieldTypeDoesNotResetOtherSettings() throws {
+    let encoded = Data(
+      #"{"theme":"rose","height":17,"hapticsEnabled":true}"#.utf8)
+
+    let decoded = try JSONDecoder().decode(KeyboardSettings.self, from: encoded)
+
+    XCTAssertEqual(decoded.theme, .rose)
+    XCTAssertEqual(decoded.height, .standard)
+    XCTAssertTrue(decoded.hapticsEnabled)
+  }
+
+  func testExtensionConnectionStatusExpires() {
+    let now = Date(timeIntervalSince1970: 10_000)
+    let recent = KeyboardExtensionConnectionStatus(
+      lastActivatedAt: now.addingTimeInterval(-60), hadFullAccess: true)
+    let stale = KeyboardExtensionConnectionStatus(
+      lastActivatedAt: now.addingTimeInterval(-600), hadFullAccess: true)
+
+    XCTAssertTrue(recent.isRecent(referenceDate: now, maximumAge: 120))
+    XCTAssertFalse(stale.isRecent(referenceDate: now, maximumAge: 120))
+  }
+
   func testHeightPresetsRemainOrdered() {
     XCTAssertLessThan(KeyboardHeightPreset.compact.rowScale, KeyboardHeightPreset.standard.rowScale)
     XCTAssertLessThan(KeyboardHeightPreset.standard.rowScale, KeyboardHeightPreset.large.rowScale)

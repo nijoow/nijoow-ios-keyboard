@@ -60,6 +60,7 @@ extension KeyboardViewController {
 
     // 5. 시작 가시성 적용
     updatePanelVisibility()
+    lastRenderedPanel = interactionState.panel
   }
 
   /// 키보드 뷰에 확정 높이 제약을 설치/갱신한다.
@@ -108,8 +109,8 @@ extension KeyboardViewController {
     customKeyboardView = nil
     mainContentStack?.isHidden = false
     if resetMode {
-      isCustom = false
-      wasCustom = false
+      interactionState.leaveEmojiPanel()
+      lastRenderedPanel = interactionState.panel
     }
   }
 
@@ -477,6 +478,16 @@ extension KeyboardViewController {
     btn.isExclusiveTouch = false
     btn.accessibilityTraits.insert(.keyboardKey)
     btn.touchDelegate = self
+    btn.accessibilityActivationHandler = { [weak self, weak btn] in
+      guard let self, let btn, let action = self.keyboardAction(for: btn.keyValue) else {
+        return false
+      }
+      let didPerform = self.dispatchKeyboardAction(action)
+      if didPerform, case .character = action {
+        btn.committedInputGeneration = self.inputMutationGeneration
+      }
+      return didPerform
+    }
 
     // 숫자·기호처럼 변체가 없는 키에는 롱프레스 인식기를 만들지 않는다. 모든 일반 키에
     // 인식기를 붙이면 화면 가장자리 키에서도 불필요한 제스처 중재 비용이 발생한다.
@@ -513,10 +524,9 @@ extension KeyboardViewController {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
 
-    if isCustom != wasCustom || isSymbol != wasSymbol {
+    if interactionState.panel != lastRenderedPanel {
       updatePanelVisibility()
-      wasCustom = isCustom
-      wasSymbol = isSymbol
+      lastRenderedPanel = interactionState.panel
     }
 
     // 외관 및 레이블은 패널 전환 여부와 무관하게 항상 업데이트
@@ -549,6 +559,13 @@ extension KeyboardViewController {
           btn.setTitleColor(targetTextC, for: .normal)
           btn.tintColor = targetTextC
         }
+        btn.accessibilityTraits = [.keyboardKey]
+        if isActive { btn.accessibilityTraits.insert(.selected) }
+        btn.accessibilityLabel = isSymbol ? "기호 페이지" : "시프트"
+        btn.accessibilityValue =
+          isSymbol
+          ? (isShifted ? "2/2" : "1/2")
+          : (isShiftLocked ? "고정" : (isActive ? "한 번 사용" : "꺼짐"))
 
         let targetTitle = isSymbol ? (isShifted ? "2/2" : "1/2") : (isShiftLocked ? "⇪" : "⇧")
         if btn.title(for: .normal) != targetTitle {
@@ -559,16 +576,24 @@ extension KeyboardViewController {
       }
 
       if id != KeyboardConstants.KeyID.shift {
-        let targetColor = isSpecial ? specialGlassColor : keyGlassColor
+        let isCustomActive = id == KeyboardConstants.KeyID.custom && isCustom
+        let targetColor = isCustomActive
+          ? activeGlassColor : (isSpecial ? specialGlassColor : keyGlassColor)
         if btn.backgroundColor != targetColor {
           btn.backgroundColor = targetColor
           btn.normalBackgroundColor = btn.backgroundColor
         }
 
-        let targetTextColor = isSpecial ? specialTextColor : keyTextColor
+        let targetTextColor = isCustomActive
+          ? activeTextColor : (isSpecial ? specialTextColor : keyTextColor)
         if btn.titleColor(for: .normal) != targetTextColor {
           btn.setTitleColor(targetTextColor, for: .normal)
           btn.tintColor = targetTextColor
+        }
+        btn.accessibilityTraits = [.keyboardKey]
+        if isCustomActive { btn.accessibilityTraits.insert(.selected) }
+        if id == KeyboardConstants.KeyID.custom {
+          btn.accessibilityValue = isCustomActive ? "선택됨" : "선택 안 됨"
         }
       }
 

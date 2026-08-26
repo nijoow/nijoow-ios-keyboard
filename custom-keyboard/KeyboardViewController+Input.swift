@@ -1,24 +1,118 @@
 import UIKit
 
+enum KeyboardActionFeedback {
+  case keyPress
+  case repeatCursor
+  case repeatBackspace
+  case none
+}
+
 extension KeyboardViewController {
+
+  // MARK: - 단일 입력 액션 경로
+
+  func keyboardAction(for keyValue: String) -> KeyboardAction? {
+    switch keyValue {
+    case KeyboardConstants.KeyID.shift: return .shift
+    case KeyboardConstants.KeyID.backspace: return .backspace
+    case KeyboardConstants.KeyID.language: return .switchLanguage
+    case KeyboardConstants.KeyID.symbol: return .toggleSymbols
+    case KeyboardConstants.KeyID.enter: return .enter
+    case KeyboardConstants.KeyID.custom: return .toggleEmoji
+    case KeyboardConstants.KeyID.dismiss: return .dismiss
+    case KeyboardConstants.KeyID.nextKeyboard: return .nextKeyboard
+    case KeyboardConstants.KeyID.space: return .space
+    case KeyboardConstants.KeyID.cursorLineStart: return .moveCursor(.lineStart)
+    case KeyboardConstants.KeyID.cursorLeft: return .moveCursor(.left)
+    case KeyboardConstants.KeyID.cursorRight: return .moveCursor(.right)
+    case KeyboardConstants.KeyID.cursorLineEnd: return .moveCursor(.lineEnd)
+    case KeyboardConstants.KeyID.dummy, "": return nil
+    default: return .character(keyValue)
+    }
+  }
+
+  @discardableResult
+  func dispatchKeyboardAction(
+    _ action: KeyboardAction, feedback: KeyboardActionFeedback = .keyPress
+  ) -> Bool {
+    if action != .shift && action != .lockShift {
+      interactionState.cancelShiftTapCandidate()
+    }
+
+    let didPerform: Bool
+    switch action {
+    case .character(let key):
+      didPerform = handleCharacterInput(key)
+    case .shift:
+      interactionState.tapShift(
+        at: ProcessInfo.processInfo.systemUptime,
+        doubleTapInterval: KeyboardConstants.Interaction.shiftDoubleTapInterval)
+      rebuildKeyboard()
+      didPerform = true
+    case .lockShift:
+      let previous = interactionState
+      interactionState.lockShift()
+      if interactionState != previous { rebuildKeyboard() }
+      didPerform = interactionState != previous
+    case .backspace:
+      didPerform = handleBackspace()
+    case .moveCursor(let movement):
+      flushHangul()
+      didPerform = handleCursorMove(movement)
+    case .space:
+      flushHangul()
+      performDocumentMutation { insertTextThroughProxy(KeyboardConstants.KeyID.space) }
+      didPerform = true
+    case .switchLanguage:
+      flushHangul()
+      interactionState.toggleLanguage()
+      UserDefaults.standard.set(isHangul, forKey: KeyboardConstants.Storage.hangulMode)
+      rebuildKeyboard()
+      didPerform = true
+    case .toggleSymbols:
+      flushHangul()
+      interactionState.toggleSymbols()
+      rebuildKeyboard()
+      didPerform = true
+    case .toggleEmoji:
+      flushHangul()
+      interactionState.toggleEmoji()
+      rebuildKeyboard()
+      didPerform = true
+    case .enter:
+      flushHangul()
+      performDocumentMutation { insertTextThroughProxy("\n") }
+      didPerform = true
+    case .dismiss:
+      dismissKeyboard()
+      didPerform = true
+    case .nextKeyboard:
+      flushHangul()
+      advanceToNextInputMode()
+      didPerform = true
+    }
+
+    guard didPerform else { return false }
+    markSuccessfulAction(feedback: feedback)
+    return true
+  }
+
+  func markSuccessfulAction(feedback: KeyboardActionFeedback) {
+    inputMutationGeneration &+= 1
+    KeyboardInputDiagnostics.shared.recordInputAction()
+    switch feedback {
+    case .keyPress: KeyboardHaptics.shared.playKeyPress()
+    case .repeatCursor: KeyboardHaptics.shared.playRepeat(.cursor)
+    case .repeatBackspace: KeyboardHaptics.shared.playRepeat(.backspace)
+    case .none: break
+    }
+  }
 
   // MARK: - 문자 및 한글 입력 로직
 
-  // delegate(touchesBegan)로 호출되는 일반 문자 키 전용 입력 함수
-  // 특수 키(backspace, cursor, shift 등)는 각자의 addTarget 핸들러에서 처리
-  func handleKeyPress(_ sender: KeyButton) {
-    let key = sender.keyValue
-    if key == KeyboardConstants.KeyID.dummy || key.isEmpty { return }
-
-    // 특수 키는 여기서 처리하지 않음 (addTarget 핸들러에서 담당)
-    if KeyboardConstants.KeyID.specialKeys.contains(key)
-      || KeyboardConstants.KeyID.cursorKeys.contains(key)
-    {
-      return
-    }
-
-    guard let ch = key.first else { return }
-    KeyboardInputDiagnostics.shared.recordInputAction()
+  @discardableResult
+  func handleCharacterInput(_ key: String) -> Bool {
+    guard let ch = key.first else { return false }
 
     if isHangul && ch.isLetter && !isSymbol {
       inputHangul(ch)
@@ -31,10 +125,10 @@ extension KeyboardViewController {
     }
 
     // 글자 입력 후 일회용 시프트 해제 (심볼 모드가 아닐 때만)
-    if isShifted && !isShiftLocked && !isSymbol {
-      isShifted = false
+    if interactionState.consumeOneShotShift() {
       rebuildKeyboard()
     }
+    return true
   }
 
   func inputHangul(_ ch: Character) {
@@ -105,91 +199,35 @@ extension KeyboardViewController {
   // MARK: - 기능 키 핸들링
 
   @objc func shiftTapped() {
-    KeyboardInputDiagnostics.shared.recordInputAction()
-
-    if isSymbol {
-      // 특수 기호 모드: 단순히 페이지 토글 (1/2 <-> 2/2)
-      // 이때는 일회용이 아닌 고정 모드로 동작하도록 함
-      isShifted.toggle()
-      rebuildKeyboard()
-      return
-    }
-
-    let now = Date()
-
-    // 1. 고정 모드 해제: 이미 고정되어 있다면 어떤 탭이든 해제
-    if isShiftLocked {
-      isShiftLocked = false
-      isShifted = false
-      lastShiftTapTime = nil
-      rebuildKeyboard()
-      return
-    }
-
-    // 2. 더블 탭 판정 (0.3초 이내 다시 클릭)
-    if let lastTime = lastShiftTapTime,
-      now.timeIntervalSince(lastTime) < KeyboardConstants.Interaction.shiftDoubleTapInterval
-    {
-      isShiftLocked = true
-      isShifted = true
-      lastShiftTapTime = nil
-    } else {
-      // 3. 단일 탭: 일회용 시프트 토글
-      isShifted.toggle()
-      lastShiftTapTime = now
-    }
-
-    rebuildKeyboard()
+    dispatchKeyboardAction(.shift)
   }
 
   @objc func handleShiftLongPress(_ gesture: UILongPressGestureRecognizer) {
     if gesture.state == .began {
-      if !isSymbol {
-        isShiftLocked = true
-        isShifted = true
-        rebuildKeyboard()
-      }
+      dispatchKeyboardAction(.lockShift)
     }
   }
 
   @objc func langTapped() {
-    KeyboardInputDiagnostics.shared.recordInputAction()
-    flushHangul()
-    isHangul.toggle()
-    isShifted = false
-    isShiftLocked = false
-    UserDefaults.standard.set(isHangul, forKey: KeyboardConstants.Storage.hangulMode)
-    isCustom = false
-    isSymbol = false
-    rebuildKeyboard()
+    dispatchKeyboardAction(.switchLanguage)
   }
 
   @objc func symbolTapped() {
-    KeyboardInputDiagnostics.shared.recordInputAction()
-    flushHangul()
-    isSymbol.toggle()
-    isCustom = false  // 이모지 모드 해제
-    // 기호 모드 진입 시 시프트 상태 초기화 (1/2 페이지부터 시작)
-    isShifted = false
-    rebuildKeyboard()
+    dispatchKeyboardAction(.toggleSymbols)
   }
 
   @objc func enterTapped() {
-    KeyboardInputDiagnostics.shared.recordInputAction()
-    flushHangul()
-    performDocumentMutation {
-      insertTextThroughProxy("\n")
-    }
+    dispatchKeyboardAction(.enter)
   }
 
   // MARK: - 커서 이동 및 가속
 
   @objc func cursorTouchDown(_ sender: UIButton) {
-    guard let id = sender.accessibilityIdentifier else { return }
-    KeyboardInputDiagnostics.shared.recordInputAction()
-    // 한 번 클릭 동작 수행
-    flushHangul()
-    handleCursorMove(id: id)
+    guard let id = sender.accessibilityIdentifier,
+      let action = keyboardAction(for: id),
+      case .moveCursor = action
+    else { return }
+    dispatchKeyboardAction(action)
 
     // 왼쪽/오른쪽 버튼인 경우에만 가속 타이머 작동
     if id == KeyboardConstants.KeyID.cursorLeft || id == KeyboardConstants.KeyID.cursorRight {
@@ -207,13 +245,14 @@ extension KeyboardViewController {
     stopCursorRepeat()
   }
 
-  private func handleCursorMove(id: String) {
-    switch id {
-    case KeyboardConstants.KeyID.cursorLeft:
+  @discardableResult
+  private func handleCursorMove(_ movement: CursorMovement) -> Bool {
+    switch movement {
+    case .left:
       moveCursorThroughProxy(byCharacterOffset: -1)
-    case KeyboardConstants.KeyID.cursorRight:
+    case .right:
       moveCursorThroughProxy(byCharacterOffset: 1)
-    case KeyboardConstants.KeyID.cursorLineStart:
+    case .lineStart:
       let before = textDocumentProxy.documentContextBeforeInput ?? ""
       if before.isEmpty || before.last == "\n" {
         // 이미 줄의 맨 앞이면 이전 줄로 이동
@@ -227,7 +266,7 @@ extension KeyboardViewController {
           moveCursorThroughProxy(byCharacterOffset: -before.count)
         }
       }
-    case KeyboardConstants.KeyID.cursorLineEnd:
+    case .lineEnd:
       let after = textDocumentProxy.documentContextAfterInput ?? ""
       if after.isEmpty || after.first == "\n" {
         // 이미 줄의 맨 뒤면 다음 줄로 이동
@@ -241,8 +280,8 @@ extension KeyboardViewController {
           moveCursorThroughProxy(byCharacterOffset: after.count)
         }
       }
-    default: break
     }
+    return true
   }
 
   private func startContinuousCursorMove(
@@ -251,8 +290,8 @@ extension KeyboardViewController {
     cursorTimer?.invalidate()
     cursorTimer = scheduleInputTimer(interval: interval, repeats: true) { [weak self] in
       guard let self else { return }
-      self.handleCursorMove(id: id)
-      KeyboardHaptics.shared.playRepeat(.cursor)
+      guard let action = self.keyboardAction(for: id), case .moveCursor = action else { return }
+      self.dispatchKeyboardAction(action, feedback: .repeatCursor)
       self.cursorRepeatCount += 1
 
       if self.cursorRepeatCount == KeyboardConstants.Interaction.fastRepeatThreshold {
@@ -266,22 +305,15 @@ extension KeyboardViewController {
   }
 
   @objc func customTapped() {
-    KeyboardInputDiagnostics.shared.recordInputAction()
-    flushHangul()
-    isCustom.toggle()
-    isSymbol = false
-    rebuildKeyboard()
+    dispatchKeyboardAction(.toggleEmoji)
   }
 
   @objc func dismissTapped() {
-    KeyboardInputDiagnostics.shared.recordInputAction()
-    dismissKeyboard()
+    dispatchKeyboardAction(.dismiss)
   }
 
   @objc func nextKeyboardTapped() {
-    KeyboardInputDiagnostics.shared.recordInputAction()
-    flushHangul()
-    advanceToNextInputMode()
+    dispatchKeyboardAction(.nextKeyboard)
   }
 
   // MARK: - 스페이스바 드래그 커서 이동
@@ -308,8 +340,8 @@ extension KeyboardViewController {
       // 한 프레임 안에 임계값 여러 칸을 이동해도 남은 거리를 버리지 않는다.
       while abs(accumulatedPanX) >= threshold {
         let direction = accumulatedPanX > 0 ? 1 : -1
-        moveCursorThroughProxy(byCharacterOffset: direction)
-        KeyboardHaptics.shared.playRepeat(.cursor)
+        let movement: CursorMovement = direction > 0 ? .right : .left
+        dispatchKeyboardAction(.moveCursor(movement), feedback: .repeatCursor)
 
         // 이동한 만큼의 거리를 뺀 나머지만 남겨서 부드러운 연속 이동 가능케 함
         accumulatedPanX -= CGFloat(direction) * threshold
@@ -340,10 +372,12 @@ extension KeyboardViewController {
   func beginSpaceCursorMode() {
     guard !isSpaceCursorModeActive else { return }
     flushHangul()
+    interactionState.cancelShiftTapCandidate()
     accumulatedPanX = 0
     shouldSuppressSpaceTap = true
     isSpaceCursorModeActive = true
     beginSpaceDragVisual()
+    markSuccessfulAction(feedback: .keyPress)
   }
 
   /// 커서 이동 모드 종료 (롱프레스/드래그 공통).
@@ -365,13 +399,14 @@ extension KeyboardViewController {
   }
 
   func beginBackspaceRepeat() {
-    handleBackspace()
-    backspaceRepeatCount = 0
     stopBackspaceRepeat()
+    backspaceRepeatCount = 0
+    backspaceHoldStartedAt = ProcessInfo.processInfo.systemUptime
+    dispatchKeyboardAction(.backspace)
     backspaceStartTimer = scheduleInputTimer(
       interval: KeyboardConstants.Interaction.backspaceRepeatStartDelay, repeats: false
     ) { [weak self] in
-      self?.startContinuousBackspace()
+      self?.scheduleNextBackspaceTick()
     }
   }
 
@@ -380,6 +415,7 @@ extension KeyboardViewController {
     backspaceTimer?.invalidate()
     backspaceStartTimer = nil
     backspaceTimer = nil
+    backspaceHoldStartedAt = nil
   }
 
   func stopCursorRepeat() {
@@ -389,7 +425,8 @@ extension KeyboardViewController {
     cursorTimer = nil
   }
 
-  private func handleBackspace(repeatFeedback: Bool = false) {
+  @discardableResult
+  private func handleBackspace() -> Bool {
     var didDelete = false
     performDocumentMutation {
       if isHangul && !isSymbol {
@@ -415,28 +452,28 @@ extension KeyboardViewController {
         }
       }
     }
-    guard didDelete else { return }
-    KeyboardInputDiagnostics.shared.recordInputAction()
-    if repeatFeedback { KeyboardHaptics.shared.playRepeat(.backspace) }
+    return didDelete
   }
 
-  private func startContinuousBackspace(
-    interval: TimeInterval = KeyboardConstants.Interaction.repeatInterval
-  ) {
+  private func scheduleNextBackspaceTick() {
+    guard let startedAt = backspaceHoldStartedAt else { return }
     backspaceTimer?.invalidate()
-    backspaceTimer = scheduleInputTimer(interval: interval, repeats: true) { [weak self] in
+    let heldDuration = ProcessInfo.processInfo.systemUptime - startedAt
+    let profile = BackspaceRepeatProfile.profile(heldDuration: heldDuration)
+    backspaceTimer = scheduleInputTimer(interval: profile.interval, repeats: false) { [weak self] in
       guard let self else { return }
-      self.handleBackspace(repeatFeedback: true)
-      self.backspaceRepeatCount += 1
-
-      if self.backspaceRepeatCount == KeyboardConstants.Interaction.fastRepeatThreshold {
-        self.startContinuousBackspace(interval: KeyboardConstants.Interaction.fastRepeatInterval)
-      } else if self.backspaceRepeatCount
-        == KeyboardConstants.Interaction.fastestRepeatThreshold
-      {
-        self.startContinuousBackspace(
-          interval: KeyboardConstants.Interaction.fastestRepeatInterval)
+      var deletedCount = 0
+      for _ in 0..<profile.batchSize {
+        guard self.dispatchKeyboardAction(.backspace, feedback: .none) else { break }
+        deletedCount += 1
       }
+      guard deletedCount > 0 else {
+        self.backspaceTimer = nil
+        return
+      }
+      KeyboardHaptics.shared.playRepeat(.backspace)
+      self.backspaceRepeatCount += deletedCount
+      self.scheduleNextBackspaceTick()
     }
   }
 
@@ -465,10 +502,10 @@ extension KeyboardViewController: KeyButtonDelegate {
       shouldSuppressSpaceTap = false
     }
     KeyboardInputDiagnostics.shared.recordTouch()
-    KeyboardHaptics.shared.playKeyPress()
-    // 일반 문자 키만 delegate에서 즉시 처리 (제로 지연 입력)
-    // 특수 키는 addTarget 이벤트(.touchDown/.touchUpInside)로 처리됨
-    handleKeyPress(button)
+    guard let action = keyboardAction(for: button.keyValue), case .character = action else { return }
+    if dispatchKeyboardAction(action) {
+      button.committedInputGeneration = inputMutationGeneration
+    }
   }
 
   func keyButtonTouchesEnded(_ button: KeyButton, cancelled: Bool) {
@@ -480,11 +517,7 @@ extension KeyboardViewController: KeyButtonDelegate {
       let shouldInsertSpace = !cancelled && !shouldSuppressSpaceTap
       shouldSuppressSpaceTap = false
       if shouldInsertSpace {
-        flushHangul()
-        performDocumentMutation {
-          insertTextThroughProxy(KeyboardConstants.KeyID.space)
-        }
-        KeyboardInputDiagnostics.shared.recordInputAction()
+        dispatchKeyboardAction(.space)
       }
     }
 
@@ -502,17 +535,11 @@ extension KeyboardViewController: KeyButtonDelegate {
 extension KeyboardViewController: CustomKeyboardViewDelegate {
   func customKeyboardView(_ view: CustomKeyboardView, didSelectCustom custom: String) {
     KeyboardInputDiagnostics.shared.recordTouch()
-    KeyboardInputDiagnostics.shared.recordInputAction()
-    KeyboardHaptics.shared.playKeyPress()
-    flushHangul()
-    performDocumentMutation {
-      insertTextThroughProxy(custom)
-    }
+    dispatchKeyboardAction(.character(custom))
   }
 
   func customKeyboardViewDidBeginBackspace(_ view: CustomKeyboardView) {
     KeyboardInputDiagnostics.shared.recordTouch()
-    KeyboardHaptics.shared.playKeyPress()
     beginBackspaceRepeat()
   }
 

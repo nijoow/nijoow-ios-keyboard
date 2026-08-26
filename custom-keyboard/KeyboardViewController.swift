@@ -7,12 +7,17 @@ private let logger = OSLog(subsystem: "com.nijoow.keyboard", category: "lifecycl
 class KeyboardViewController: UIInputViewController {
 
   // MARK: - 핵심 상태
-  var isHangul: Bool = true
-  var isShifted: Bool = false
-  var isShiftLocked: Bool = false
-  var lastShiftTapTime: Date?  // 시프트 더블 탭 판정용
-  var isSymbol: Bool = false
-  var isCustom: Bool = false
+  var interactionState = KeyboardInteractionState()
+  var isHangul: Bool { interactionState.isHangul }
+  var isShifted: Bool { interactionState.isShifted }
+  var isShiftLocked: Bool { interactionState.isShiftLocked }
+  var isSymbol: Bool { interactionState.isSymbol }
+  var isCustom: Bool { interactionState.isEmoji }
+
+  /// 성공한 논리 입력마다 증가한다. 롱 프레스 변형이 자신이 만든 문자를 안전하게
+  /// 교체할 수 있는지 판정하고, 다른 손가락 입력을 삭제하지 않게 하는 세대 번호다.
+  var inputMutationGeneration: UInt64 = 0
+  var popupTargetGeneration: UInt64?
 
   let automata = HangulAutomata()
   /// 현재 문서에 표시 중인 한글 조합 문자열(밑줄 없는 조합 구현용).
@@ -61,18 +66,18 @@ class KeyboardViewController: UIInputViewController {
     }
   }
 
-  /// 화면이 가로 방향인지. (UIScreen.main은 iOS 26에서 deprecated이므로 사용하지 않음)
-  /// 윈도우가 붙어 있으면 windowScene의 인터페이스 방향을, 아직 없으면(빌드 초기)
-  /// 트레잇의 세로 사이즈클래스로 추정한다(아이폰 가로 = verticalSizeClass compact).
-  var isLandscapeScreen: Bool {
-    if let scene = view.window?.windowScene {
-      if #available(iOS 26.0, *) {
-        return scene.effectiveGeometry.interfaceOrientation.isLandscape
-      } else {
-        return scene.interfaceOrientation.isLandscape
-      }
+  /// 회전 중에는 `viewWillTransition(to:)`가 제공한 폭을 우선 사용한다.
+  /// 기기 방향 추정 대신 실제 컨테이너 폭으로 레이아웃을 분류해 iPad 분할 화면도 대응한다.
+  var layoutReferenceWidth: CGFloat?
+  var isLayoutRefreshScheduled = false
+
+  var currentLayoutWidth: CGFloat {
+    if let layoutReferenceWidth, layoutReferenceWidth > 0 { return layoutReferenceWidth }
+    if view.bounds.width > 0 { return view.bounds.width }
+    if let sceneWidth = view.window?.windowScene?.coordinateSpace.bounds.width, sceneWidth > 0 {
+      return sceneWidth
     }
-    return traitCollection.verticalSizeClass == .compact
+    return deviceIsPad ? 768 : 390
   }
 
   /// 현재 기기가 아이패드인지
@@ -80,26 +85,34 @@ class KeyboardViewController: UIInputViewController {
     return traitCollection.userInterfaceIdiom == .pad
   }
 
+  var currentLayoutClass: KeyboardLayoutClass {
+    KeyboardLayoutClass.classify(width: currentLayoutWidth, isPad: deviceIsPad)
+  }
+
+  @discardableResult
+  func updateLayoutReferenceWidth(_ width: CGFloat) -> Bool {
+    guard width > 0 else { return false }
+    let previous = currentLayoutClass
+    layoutReferenceWidth = width
+    return previous != currentLayoutClass
+  }
+
   var layoutMetrics: LayoutMetrics {
     let baseMetrics: LayoutMetrics
-    if deviceIsPad {
-      // 아이패드: 큰 화면에 맞춰 행 높이·폰트를 키워 키를 충분히 크게
-      if isLandscapeScreen {
-        baseMetrics = LayoutMetrics(
-          utilRowH: 46, numberRowH: 52, mainKeyH: 60, bottomRowH: 54,
-          cornerRadius: 16, utilCornerRadius: 13, keyFontSize: 26)
-      } else {
-        baseMetrics = LayoutMetrics(
-          utilRowH: 42, numberRowH: 46, mainKeyH: 52, bottomRowH: 48,
-          cornerRadius: 14, utilCornerRadius: 11, keyFontSize: 24)
-      }
-    } else if isLandscapeScreen {
-      // 아이폰 가로: 세로(기존 고정 높이)와 컴팩트의 중간 정도로
+    switch currentLayoutClass {
+    case .widePad:
+      baseMetrics = LayoutMetrics(
+        utilRowH: 46, numberRowH: 52, mainKeyH: 60, bottomRowH: 54,
+        cornerRadius: 16, utilCornerRadius: 13, keyFontSize: 26)
+    case .regularPad:
+      baseMetrics = LayoutMetrics(
+        utilRowH: 42, numberRowH: 46, mainKeyH: 52, bottomRowH: 48,
+        cornerRadius: 14, utilCornerRadius: 11, keyFontSize: 24)
+    case .widePhone:
       baseMetrics = LayoutMetrics(
         utilRowH: 30, numberRowH: 32, mainKeyH: 34, bottomRowH: 32,
         cornerRadius: 10, utilCornerRadius: 7, keyFontSize: 18)
-    } else {
-      // 아이폰 세로 (기존 값 유지)
+    case .compactPhone:
       baseMetrics = LayoutMetrics(
         utilRowH: KeyboardConstants.utilityRowHeight,
         numberRowH: KeyboardConstants.numberRowHeight,
@@ -136,6 +149,7 @@ class KeyboardViewController: UIInputViewController {
   var backspaceStartTimer: Timer?
   var backspaceTimer: Timer?
   var backspaceRepeatCount = 0
+  var backspaceHoldStartedAt: TimeInterval?
 
   // 커서 이동 가속 관련
   var cursorTimer: Timer?
@@ -157,9 +171,8 @@ class KeyboardViewController: UIInputViewController {
     action()
   }
 
-  // MARK: - 패널 상태
-  var wasCustom = false
-  var wasSymbol = false
+  // MARK: - 패널 렌더링 상태
+  var lastRenderedPanel: KeyboardPanel = .letters
 
   // MARK: - 사용자 설정
   private(set) var keyboardSettings = KeyboardSettings.default
@@ -213,6 +226,7 @@ class KeyboardViewController: UIInputViewController {
     super.viewDidLoad()
 
     reloadKeyboardSettings()
+    updateLayoutReferenceWidth(view.bounds.width)
 
     buildKeyboard()
 
@@ -228,9 +242,12 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    KeyboardInputDiagnostics.shared.beginSession()
     let heightChanged = reloadKeyboardSettings()
+    KeyboardPreferencesStore.recordExtensionActivation(hasFullAccess: hasFullAccess)
+    let widthClassChanged = updateLayoutReferenceWidth(view.bounds.width)
     resetKeyboardState()
-    if heightChanged { buildKeyboard() }
+    if heightChanged || widthClassChanged { buildKeyboard() }
     // 등장 애니메이션 시작 전에 키보드 높이 확정 (점프 방지의 핵심)
     installKeyboardHeightConstraint()
     // 키보드 등장 애니메이션 중 레이아웃 재계산 방지
@@ -254,6 +271,7 @@ class KeyboardViewController: UIInputViewController {
     to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator
   ) {
     super.viewWillTransition(to: size, with: coordinator)
+    updateLayoutReferenceWidth(size.width)
     coordinator.animate(
       alongsideTransition: { _ in
         self.buildKeyboard()
@@ -264,6 +282,21 @@ class KeyboardViewController: UIInputViewController {
           self.view.layoutIfNeeded()
         }
       }, completion: nil)
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    guard updateLayoutReferenceWidth(view.bounds.width), !isLayoutRefreshScheduled else { return }
+    isLayoutRefreshScheduled = true
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      defer { self.isLayoutRefreshScheduled = false }
+      self.buildKeyboard()
+      self.installKeyboardHeightConstraint()
+      self.updateKeyLabels()
+      self.updateAppearance()
+      self.view.layoutIfNeeded()
+    }
   }
 
   override func viewWillDisappear(_ animated: Bool) {
@@ -315,19 +348,19 @@ class KeyboardViewController: UIInputViewController {
     accumulatedPanX = 0
     isSpaceCursorModeActive = false
     shouldSuppressSpaceTap = false
+    popupTargetGeneration = nil
   }
 
   private func resetKeyboardState() {
     flushHangul()
-    isShifted = false
-    isShiftLocked = false
+    interactionState.resetShift()
 
     if let lastLang = UserDefaults.standard.object(forKey: KeyboardConstants.Storage.hangulMode)
       as? Bool
     {
-      isHangul = lastLang
+      interactionState.restoreLanguage(isHangul: lastLang)
     } else {
-      isHangul = true
+      interactionState.restoreLanguage(isHangul: true)
     }
   }
 

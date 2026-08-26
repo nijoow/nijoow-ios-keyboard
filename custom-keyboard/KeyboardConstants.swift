@@ -39,7 +39,6 @@ struct KeyboardConstants {
     static let repeatStartDelay: TimeInterval = 0.4
     static let cursorRepeatInterval: TimeInterval = 0.1
     static let backspaceRepeatStartDelay: TimeInterval = 0.25
-    static let repeatInterval: TimeInterval = 0.08
     static let fastRepeatInterval: TimeInterval = 0.05
     static let fastestRepeatInterval: TimeInterval = 0.03
     static let fastRepeatThreshold = 10

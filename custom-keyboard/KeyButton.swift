@@ -10,6 +10,8 @@ final class KeyButton: UIButton {
 
   weak var touchDelegate: KeyButtonDelegate?
   var keyValue = ""
+  var committedInputGeneration: UInt64?
+  var accessibilityActivationHandler: (() -> Bool)?
 
   // MARK: - 글래스모피즘 레이어
   // glassBodyLayer: 반투명 바디의 세로 광택(상단 하이라이트 + 하단 음영).
@@ -156,6 +158,10 @@ final class KeyButton: UIButton {
     super.touchesCancelled(touches, with: event)
     endTouchVisual()
     touchDelegate?.keyButtonTouchesEnded(self, cancelled: true)
+  }
+
+  override func accessibilityActivate() -> Bool {
+    accessibilityActivationHandler?() ?? super.accessibilityActivate()
   }
 
   // MARK: - 터치 피드백 (하이라이트 효과)

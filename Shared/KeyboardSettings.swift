@@ -73,6 +73,12 @@ struct KeyboardRGBA: Codable, Equatable, Sendable {
   let green: Double
   let blue: Double
 
+  private enum CodingKeys: String, CodingKey {
+    case red
+    case green
+    case blue
+  }
+
   init(red: Double, green: Double, blue: Double) {
     self.red = Self.clamp(red)
     self.green = Self.clamp(green)
@@ -92,12 +98,22 @@ struct KeyboardRGBA: Codable, Equatable, Sendable {
     }
   }
 
+  init(from decoder: Decoder) throws {
+    let container = try decoder.container(keyedBy: CodingKeys.self)
+    let fallback = Self.defaultCustomAccent
+    self.init(
+      red: (try? container.decode(Double.self, forKey: .red)) ?? fallback.red,
+      green: (try? container.decode(Double.self, forKey: .green)) ?? fallback.green,
+      blue: (try? container.decode(Double.self, forKey: .blue)) ?? fallback.blue)
+  }
+
   var uiColor: UIColor {
     UIColor(red: red, green: green, blue: blue, alpha: 1)
   }
 
   private static func clamp(_ value: Double) -> Double {
-    min(max(value, 0), 1)
+    guard value.isFinite else { return 0 }
+    return min(max(value, 0), 1)
   }
 }
 
@@ -127,17 +143,41 @@ struct KeyboardSettings: Codable, Equatable, Sendable {
 
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
-    schemaVersion =
-      try container.decodeIfPresent(Int.self, forKey: .schemaVersion)
-      ?? Self.currentSchemaVersion
-    theme = try container.decodeIfPresent(KeyboardThemePreset.self, forKey: .theme) ?? .obsidian
-    customAccent =
-      try container.decodeIfPresent(KeyboardRGBA.self, forKey: .customAccent)
+    let sourceVersion = (try? container.decode(Int.self, forKey: .schemaVersion)) ?? 0
+    let decodedTheme =
+      (try? container.decode(KeyboardThemePreset.self, forKey: .theme)) ?? .obsidian
+    let decodedAccent =
+      (try? container.decode(KeyboardRGBA.self, forKey: .customAccent))
       ?? .defaultCustomAccent
-    height =
-      try container.decodeIfPresent(KeyboardHeightPreset.self, forKey: .height) ?? .standard
-    hapticsEnabled = try container.decodeIfPresent(Bool.self, forKey: .hapticsEnabled) ?? false
-    schemaVersion = Self.currentSchemaVersion
+    let decodedHeight =
+      (try? container.decode(KeyboardHeightPreset.self, forKey: .height)) ?? .standard
+    let decodedHaptics = (try? container.decode(Bool.self, forKey: .hapticsEnabled)) ?? false
+
+    // v0(버전 필드 없음)과 v1은 현재 필드별 안전 기본값으로 마이그레이션한다.
+    // 미래 버전도 아는 필드는 유지하고 모르는 enum 값만 해당 필드 기본값으로 복구한다.
+    switch sourceVersion {
+    case ...0:  // 버전 필드가 없던 초기 데이터
+      self.init(
+        schemaVersion: Self.currentSchemaVersion,
+        theme: decodedTheme,
+        customAccent: decodedAccent,
+        height: decodedHeight,
+        hapticsEnabled: decodedHaptics)
+    case Self.currentSchemaVersion:  // 현재 v1
+      self.init(
+        schemaVersion: Self.currentSchemaVersion,
+        theme: decodedTheme,
+        customAccent: decodedAccent,
+        height: decodedHeight,
+        hapticsEnabled: decodedHaptics)
+    default:  // 미래 버전: 현재 클라이언트가 아는 필드만 보존
+      self.init(
+        schemaVersion: Self.currentSchemaVersion,
+        theme: decodedTheme,
+        customAccent: decodedAccent,
+        height: decodedHeight,
+        hapticsEnabled: decodedHaptics)
+    }
   }
 
   var accent: KeyboardRGBA {
@@ -148,6 +188,7 @@ struct KeyboardSettings: Codable, Equatable, Sendable {
 enum KeyboardPreferencesStore {
   static let appGroupIdentifier = "group.nijoow.custom.keyboard"
   private static let settingsKey = "keyboard.settings.v1"
+  private static let extensionStatusKey = "keyboard.extension.status.v1"
 
   static func load() -> KeyboardSettings {
     guard let data = defaults?.data(forKey: settingsKey),
@@ -162,14 +203,38 @@ enum KeyboardPreferencesStore {
   static func save(_ settings: KeyboardSettings) -> Bool {
     guard let defaults, let data = try? JSONEncoder().encode(settings) else { return false }
     defaults.set(data, forKey: settingsKey)
-    return true
+    return defaults.data(forKey: settingsKey) == data
   }
 
   static func reset() {
     defaults?.removeObject(forKey: settingsKey)
   }
 
+  static func recordExtensionActivation(hasFullAccess: Bool, at date: Date = Date()) {
+    let status = KeyboardExtensionConnectionStatus(
+      lastActivatedAt: date, hadFullAccess: hasFullAccess)
+    guard let data = try? JSONEncoder().encode(status) else { return }
+    defaults?.set(data, forKey: extensionStatusKey)
+  }
+
+  static func loadExtensionConnectionStatus() -> KeyboardExtensionConnectionStatus? {
+    guard let data = defaults?.data(forKey: extensionStatusKey) else { return nil }
+    return try? JSONDecoder().decode(KeyboardExtensionConnectionStatus.self, from: data)
+  }
+
   private static var defaults: UserDefaults? {
     UserDefaults(suiteName: appGroupIdentifier)
+  }
+}
+
+struct KeyboardExtensionConnectionStatus: Codable, Equatable, Sendable {
+  let lastActivatedAt: Date
+  let hadFullAccess: Bool
+
+  func isRecent(referenceDate: Date = Date(), maximumAge: TimeInterval = 7 * 24 * 60 * 60)
+    -> Bool
+  {
+    let age = referenceDate.timeIntervalSince(lastActivatedAt)
+    return age >= 0 && age <= maximumAge
   }
 }

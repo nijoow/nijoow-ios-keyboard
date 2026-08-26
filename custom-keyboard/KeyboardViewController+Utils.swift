@@ -10,17 +10,27 @@ extension KeyboardViewController {
 
     switch gesture.state {
     case .began:
+      guard let generation = btn.committedInputGeneration,
+        generation == inputMutationGeneration
+      else {
+        gesture.state = .failed
+        return
+      }
       let variants = getVariants(for: char)
       if variants.count <= 1 {
         gesture.state = .failed
         return
       }
       showPopup(for: btn, variants: variants)
+      popupTargetGeneration = generation
       updatePopupSelection(touchLocationInView: gesture.location(in: self.view))
     case .changed:
       updatePopupSelection(touchLocationInView: gesture.location(in: self.view))
     case .ended:
-      if popupSelectedIndex >= 0 && popupSelectedIndex < popupItems.count {
+      if popupTargetGeneration == inputMutationGeneration,
+        popupSelectedIndex >= 0,
+        popupSelectedIndex < popupItems.count
+      {
         insertVariant(popupItems[popupSelectedIndex])
       }
       hidePopup()
@@ -133,6 +143,7 @@ extension KeyboardViewController {
     popupLabels.removeAll()
     popupItems.removeAll()
     popupSelectedIndex = -1
+    popupTargetGeneration = nil
   }
 
   func insertVariant(_ selected: String) {
@@ -147,16 +158,11 @@ extension KeyboardViewController {
       // 영문 키는 touchDown에서 기본 문자가 이미 입력됐다. 롱프레스 선택 결과는
       // 새 문자를 덧붙이지 않고 방금 입력한 한 글자를 교체해야 한다.
       performDocumentMutation {
-        if textDocumentProxy.hasText {
-          deleteBackwardThroughProxy()
-        }
+        deleteBackwardThroughProxy()
         insertTextThroughProxy(selected)
       }
     }
-    if isShifted {
-      isShifted = false
-      rebuildKeyboard()
-    }
+    markSuccessfulAction(feedback: .none)
   }
 
   // MARK: - 문자 레이블 및 아이콘 드로잉

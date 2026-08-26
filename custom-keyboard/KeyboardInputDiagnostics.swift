@@ -21,6 +21,19 @@ final class KeyboardInputDiagnostics {
 
   private init() {}
 
+  func beginSession() {
+    #if DEBUG
+      touchCount = 0
+      inputActionCount = 0
+      insertCallCount = 0
+      insertedCharacterCount = 0
+      deleteRequestCount = 0
+      cursorMoveRequestCount = 0
+      hapticCount = 0
+      nextOperationSnapshot = 100
+    #endif
+  }
+
   func recordTouch() {
     #if DEBUG
       touchCount += 1
