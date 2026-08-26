@@ -2,9 +2,11 @@ import SwiftUI
 import UIKit
 
 struct ContentView: View {
+  @Environment(\.scenePhase) private var scenePhase
   @State private var settings = KeyboardPreferencesStore.load()
   @State private var text = ""
   @State private var saveFailed = false
+  @State private var extensionStatus = KeyboardPreferencesStore.loadExtensionConnectionStatus()
   @FocusState private var isFocused: Bool
 
   private var palette: KeyboardThemePalette {
@@ -33,6 +35,10 @@ struct ContentView: View {
       }
     }
     .preferredColorScheme(.dark)
+    .onAppear(perform: refreshExtensionStatus)
+    .onChange(of: scenePhase) { _, newValue in
+      if newValue == .active { refreshExtensionStatus() }
+    }
   }
 
   private var background: some View {
@@ -151,7 +157,9 @@ struct ContentView: View {
 
   private var testCard: some View {
     VStack(alignment: .leading, spacing: 16) {
-      sectionHeader(title: "직접 타이핑해 보기", subtitle: "설정 적용 후 실제 입력감을 확인해 보세요.")
+      sectionHeader(
+        title: "직접 타이핑해 보기",
+        subtitle: "현재 선택된 키보드로 입력감을 확인할 수 있어요.")
 
       TextField("여기를 눌러 키보드 테스트...", text: $text, axis: .vertical)
         .lineLimit(2...5)
@@ -175,6 +183,8 @@ struct ContentView: View {
         StepView(
           number: "4", title: "전체 접근 허용", subtitle: "테마·높이·햅틱 설정 공유에 사용", isLast: true)
       }
+
+      connectionStatusView
 
       Button {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
@@ -205,6 +215,25 @@ struct ContentView: View {
     }
     .padding(22)
     .background(GlassCard(cornerRadius: 24))
+  }
+
+  private var connectionStatusView: some View {
+    let recentlyConnected = extensionStatus?.isRecent() == true
+    let fullAccessConfirmed = recentlyConnected && extensionStatus?.hadFullAccess == true
+    let title =
+      fullAccessConfirmed
+      ? "최근 키보드 연결과 전체 접근을 확인했어요."
+      : (recentlyConnected
+        ? "최근 키보드 실행을 확인했지만 전체 접근은 확인되지 않았어요."
+        : "아직 이 앱에서 키보드 연결을 확인하지 못했어요.")
+
+    return Label(
+      title,
+      systemImage: fullAccessConfirmed ? "checkmark.circle.fill" : "info.circle.fill"
+    )
+    .font(.system(size: 12, weight: .medium))
+    .foregroundStyle(fullAccessConfirmed ? .green.opacity(0.85) : .white.opacity(0.52))
+    .accessibilityLabel(title)
   }
 
   private var customAccentBinding: Binding<Color> {
@@ -247,6 +276,10 @@ struct ContentView: View {
     mutation(&updated)
     settings = updated
     saveFailed = !KeyboardPreferencesStore.save(updated)
+  }
+
+  private func refreshExtensionStatus() {
+    extensionStatus = KeyboardPreferencesStore.loadExtensionConnectionStatus()
   }
 
   private func sectionHeader(title: String, subtitle: String) -> some View {

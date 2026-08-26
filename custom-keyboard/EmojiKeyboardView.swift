@@ -15,6 +15,7 @@ final class CustomKeyboardView: UIView, UICollectionViewDataSource,
   private var collectionView: UICollectionView!
   private var dockScrollView: UIScrollView!
   private var dockStackView: UIStackView!
+  private let emptyStateLabel = UILabel()
 
   private let provider = EmojiProvider.shared
   private let isPad = UIDevice.current.userInterfaceIdiom == .pad
@@ -33,6 +34,7 @@ final class CustomKeyboardView: UIView, UICollectionViewDataSource,
   init(palette: KeyboardThemePalette) {
     self.palette = palette
     super.init(frame: .zero)
+    provider.loadIfNeeded(retryOnFailure: true)
     setupView()
   }
 
@@ -74,11 +76,19 @@ final class CustomKeyboardView: UIView, UICollectionViewDataSource,
     dockBg.layer.borderColor = glassBorderColor
     dockBg.translatesAutoresizingMaskIntoConstraints = false
 
-    let backspaceBtn = UIButton(type: .system)
+    let backspaceBtn = AccessibleEmojiButton(type: .system)
     backspaceBtn.setTitle("⌫", for: .normal)
     backspaceBtn.titleLabel?.font = UIFont.systemFont(ofSize: isPad ? 26 : 20, weight: .medium)
     backspaceBtn.setTitleColor(.white, for: .normal)
     backspaceBtn.backgroundColor = .clear
+    backspaceBtn.accessibilityLabel = "삭제"
+    backspaceBtn.accessibilityTraits.insert(.keyboardKey)
+    backspaceBtn.accessibilityActivationHandler = { [weak self] in
+      guard let self else { return false }
+      self.delegate?.customKeyboardViewDidBeginBackspace(self)
+      self.delegate?.customKeyboardViewDidEndBackspace(self)
+      return true
+    }
     backspaceBtn.addTarget(self, action: #selector(backspaceTouchDown), for: .touchDown)
     backspaceBtn.addTarget(
       self, action: #selector(backspaceTouchUp),
@@ -118,6 +128,18 @@ final class CustomKeyboardView: UIView, UICollectionViewDataSource,
       withReuseIdentifier: "CustomHeader")
     collectionView.translatesAutoresizingMaskIntoConstraints = false
     addSubview(collectionView)
+
+    emptyStateLabel.text =
+      provider.loadingState == .failed
+      ? "이모지를 불러오지 못했어요. 키보드를 다시 열어 주세요."
+      : "표시할 이모지가 없어요."
+    emptyStateLabel.font = .systemFont(ofSize: 14, weight: .medium)
+    emptyStateLabel.textColor = palette.specialKeyText
+    emptyStateLabel.textAlignment = .center
+    emptyStateLabel.numberOfLines = 0
+    emptyStateLabel.isHidden = !provider.categories.isEmpty
+    emptyStateLabel.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(emptyStateLabel)
 
     // 4. Long Press Gesture 추가
     let longPress = UILongPressGestureRecognizer(
@@ -164,6 +186,13 @@ final class CustomKeyboardView: UIView, UICollectionViewDataSource,
       collectionView.leadingAnchor.constraint(equalTo: leadingAnchor),
       collectionView.trailingAnchor.constraint(equalTo: trailingAnchor),
       collectionView.bottomAnchor.constraint(equalTo: dockContainer.topAnchor, constant: -5),
+
+      emptyStateLabel.centerXAnchor.constraint(equalTo: collectionView.centerXAnchor),
+      emptyStateLabel.centerYAnchor.constraint(equalTo: collectionView.centerYAnchor),
+      emptyStateLabel.leadingAnchor.constraint(
+        greaterThanOrEqualTo: collectionView.leadingAnchor, constant: 24),
+      emptyStateLabel.trailingAnchor.constraint(
+        lessThanOrEqualTo: collectionView.trailingAnchor, constant: -24),
     ])
 
     collectionView.reloadData()
@@ -185,6 +214,8 @@ final class CustomKeyboardView: UIView, UICollectionViewDataSource,
 
       let btn = UIButton(configuration: config)
       btn.tag = index
+      btn.accessibilityLabel = "\(category.title) 이모지"
+      btn.accessibilityTraits = .button
       btn.addTarget(self, action: #selector(dockButtonTapped(_:)), for: .touchUpInside)
       dockStackView.addArrangedSubview(btn)
     }
@@ -283,6 +314,8 @@ final class CustomKeyboardView: UIView, UICollectionViewDataSource,
     ])
 
     currentPopup = popup
+    superview.layoutIfNeeded()
+    popup.updateSelection(at: 0)
   }
 
   @objc private func dockButtonTapped(_ sender: UIButton) {
@@ -342,6 +375,9 @@ final class CustomKeyboardView: UIView, UICollectionViewDataSource,
     // 셀 크기에 맞춰 이모지 글자 크기 조정 (아이패드 등 큰 셀 대응)
     let side = emojiCellSide
     if side > 0 { cell.label.font = .systemFont(ofSize: floor(side * 0.62)) }
+    cell.isAccessibilityElement = true
+    cell.accessibilityLabel = cell.label.text
+    cell.accessibilityTraits = [.button, .keyboardKey]
     return cell
   }
 
@@ -425,6 +461,14 @@ private final class CustomCell: UICollectionViewCell {
     ])
   }
   required init?(coder: NSCoder) { fatalError() }
+}
+
+private final class AccessibleEmojiButton: UIButton {
+  var accessibilityActivationHandler: (() -> Bool)?
+
+  override func accessibilityActivate() -> Bool {
+    accessibilityActivationHandler?() ?? super.accessibilityActivate()
+  }
 }
 
 private final class CustomHeaderView: UICollectionReusableView {

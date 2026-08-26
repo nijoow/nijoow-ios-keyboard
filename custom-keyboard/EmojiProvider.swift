@@ -18,6 +18,14 @@ struct EmojiCategory: Codable {
   let emojis: [String]
 }
 
+enum EmojiLoadingState: Equatable {
+  case idle
+  case loading
+  case loaded
+  case failed
+}
+
+@MainActor
 final class EmojiProvider {
   static let shared = EmojiProvider()
 
@@ -27,7 +35,7 @@ final class EmojiProvider {
   private let recentKey = "nijoow.custom.keyboard.recentEmojis"
   private let maxRecentCount = 40
 
-  private var isLoaded = false
+  private(set) var loadingState: EmojiLoadingState = .idle
 
   private var _cachedCategories: [EmojiCategory] = []
   var categories: [EmojiCategory] {
@@ -59,17 +67,22 @@ final class EmojiProvider {
 
   // MARK: - 지연 로딩 (이모지 패널이 열릴 때만)
 
-  func loadIfNeeded() {
-    guard !isLoaded else { return }
-    isLoaded = true
+  @discardableResult
+  func loadIfNeeded(retryOnFailure: Bool = false) -> Bool {
+    guard loadingState != .loaded else { return true }
+    guard loadingState != .loading else { return false }
+    guard loadingState != .failed || retryOnFailure else { return false }
+    loadingState = .loading
 
-    autoreleasepool {
+    let didLoad: Bool = autoreleasepool {
       guard let url = Bundle.main.url(forResource: "emoji", withExtension: "json"),
         let data = try? Data(contentsOf: url)
-      else { return }
+      else { return false }
 
       let decoder = JSONDecoder()
-      guard let groups = try? decoder.decode([EmojiGroup].self, from: data) else { return }
+      guard let groups = try? decoder.decode([EmojiGroup].self, from: data), !groups.isEmpty else {
+        return false
+      }
 
       var loadedCategories: [EmojiCategory] = []
       var variationsMap: [String: [String]] = [:]
@@ -93,16 +106,19 @@ final class EmojiProvider {
 
       self.baseCategories = loadedCategories
       self.emojiToVariations = variationsMap
+      return true
     }
 
+    loadingState = didLoad ? .loaded : .failed
     updateCategoriesCache()
+    return didLoad
   }
 
   func unloadData() {
     baseCategories = []
     emojiToVariations = [:]
     _cachedCategories = []
-    isLoaded = false
+    loadingState = .idle
   }
 
   // MARK: - 최근 사용 이모지 관리
@@ -124,7 +140,9 @@ final class EmojiProvider {
 
   private func loadRecents() {
     if let saved = UserDefaults.standard.stringArray(forKey: recentKey) {
-      self.recentEmojis = saved
+      var seen: Set<String> = []
+      self.recentEmojis = Array(
+        saved.lazy.filter { !$0.isEmpty && seen.insert($0).inserted }.prefix(maxRecentCount))
     }
   }
 
