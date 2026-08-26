@@ -102,6 +102,16 @@ final class KeyboardSettingsTests: XCTestCase {
     XCTAssertNotEqual(KeyboardRGBA(color: frost), KeyboardRGBA(color: rose))
   }
 
+  func testEveryThemeKeepsKeyboardRootBackgroundTransparent() {
+    for preset in KeyboardThemePreset.allCases {
+      let palette = KeyboardThemePalette.make(for: KeyboardSettings(theme: preset))
+      XCTAssertEqual(
+        palette.keyboardBackground.cgColor.alpha, 0,
+        accuracy: 0.001,
+        "\(preset.title) 테마가 키보드 루트 배경을 불투명하게 만들면 안 된다")
+    }
+  }
+
   func testNeutralCustomAccentStaysNeutral() {
     let settings = KeyboardSettings(
       theme: .custom, customAccent: KeyboardRGBA(red: 0.5, green: 0.5, blue: 0.5))

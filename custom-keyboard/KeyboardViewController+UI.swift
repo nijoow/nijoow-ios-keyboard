@@ -64,18 +64,18 @@ extension KeyboardViewController {
   }
 
   /// 키보드 뷰에 확정 높이 제약을 설치/갱신한다.
-  /// viewWillAppear에서 매 등장마다 호출해야 한다. viewDidLoad 시점에 걸면 시스템이
-  /// 등장 애니메이션을 '잠정 높이'로 시작한 뒤 보정하므로 높이가 튄다. 등장 직전에
-  /// 걸어야 시스템이 애니메이션 시작 전에 정확한 높이를 읽는다.
+  /// 첫 활성화는 viewWillAppear에서 하고, 이후에는 콘텐츠 재구성보다 먼저 높이를 바꾼다.
   func installKeyboardHeightConstraint() {
+    let targetHeight = desiredKeyboardHeight
     if let c = keyboardHeightConstraint {
-      c.constant = desiredKeyboardHeight
-      c.isActive = true
+      if abs(c.constant - targetHeight) > 0.5 {
+        c.constant = targetHeight
+      }
+      if !c.isActive { c.isActive = true }
     } else {
-      let c = view.heightAnchor.constraint(equalToConstant: desiredKeyboardHeight)
+      let c = view.heightAnchor.constraint(equalToConstant: targetHeight)
       c.identifier = "CustomKeyboard.height"
-      // 시스템이 inputView에 거는 높이 제약과 충돌해 등장/전환 시 레이아웃이 꼬이는 것을
-      // 막기 위해 required(1000)가 아닌 999로 건다. (Apple 권장)
+      // 시스템의 전환용 임시 높이 제약보다 한 단계 낮춰 콘솔 충돌과 강제 제약 파기를 피한다.
       c.priority = UILayoutPriority(999)
       c.isActive = true
       keyboardHeightConstraint = c

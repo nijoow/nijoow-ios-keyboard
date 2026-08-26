@@ -69,7 +69,8 @@ class KeyboardViewController: UIInputViewController {
   /// 회전 중에는 `viewWillTransition(to:)`가 제공한 폭을 우선 사용한다.
   /// 기기 방향 추정 대신 실제 컨테이너 폭으로 레이아웃을 분류해 iPad 분할 화면도 대응한다.
   var layoutReferenceWidth: CGFloat?
-  var isLayoutRefreshScheduled = false
+  var isApplyingLayoutRefresh = false
+  var isLayoutTransitionInProgress = false
   var isKeyboardVisible = false
   var needsLayoutRebuildOnNextAppearance = false
 
@@ -189,7 +190,7 @@ class KeyboardViewController: UIInputViewController {
   private(set) var keyTextColor: UIColor = .white
   private(set) var specialTextColor: UIColor = .gray
 
-  /// 테마 색상을 현재 다크모드 상태에 맞게 한 번에 갱신
+  /// 테마 색상을 한 번에 갱신
   func refreshThemeColors() {
     themePalette = KeyboardThemePalette.make(for: keyboardSettings)
     keyGlassColor = themePalette.keyBackground
@@ -199,6 +200,9 @@ class KeyboardViewController: UIInputViewController {
     specialTextColor = themePalette.specialKeyText
     activeTextColor = keyTextColor
     view.backgroundColor = themePalette.keyboardBackground
+    view.isOpaque = false
+    inputView?.backgroundColor = themePalette.keyboardBackground
+    inputView?.isOpaque = false
   }
 
   /// 앱에서 저장한 설정을 키보드가 나타날 때 한 번만 읽는다.
@@ -236,10 +240,9 @@ class KeyboardViewController: UIInputViewController {
 
   // MARK: - 레이아웃 설정
   //
-  // 높이 점프 방지: 키보드 뷰에 확정 높이 제약(desiredKeyboardHeight)을 viewWillAppear에서 건다.
-  // 시스템은 등장 애니메이션 시작 시점에 inputView 높이를 읽는데, 그 전(viewDidLoad)에 걸면
-  // 시스템이 잠정 높이로 애니메이션을 시작한 뒤 보정하므로 높이가 튄다(896→505→정착).
-  // 등장 직전(viewWillAppear)에 걸어야 애니메이션이 처음부터 정확한 높이로 진행된다.
+  // 높이 점프 방지: 키보드 뷰의 확정 높이는 기존에 검증된 viewWillAppear 시점에 건다.
+  // 설정·폭 변경으로 뷰를 다시 만들 때는 높이를 먼저 갱신한 뒤 콘텐츠를 교체해,
+  // 한 레이아웃 주기 동안 이전 높이와 새 행 높이가 섞이지 않게 한다.
   // 콘텐츠는 view의 top·bottom에 핀 고정되어 이 확정 높이를 행 비율대로 채운다.
 
   override func viewWillAppear(_ animated: Bool) {
@@ -252,11 +255,10 @@ class KeyboardViewController: UIInputViewController {
     resetKeyboardState()
     let shouldRebuild = heightChanged || widthClassChanged || needsLayoutRebuildOnNextAppearance
     needsLayoutRebuildOnNextAppearance = false
-    if shouldRebuild { buildKeyboard() }
-    // 등장 애니메이션 시작 전에 키보드 높이 확정 (점프 방지의 핵심)
-    installKeyboardHeightConstraint()
-    // 키보드 등장 애니메이션 중 레이아웃 재계산 방지
     UIView.performWithoutAnimation {
+      // 새 행 높이로 뷰를 만들기 전에 컨테이너 높이를 먼저 확정한다.
+      installKeyboardHeightConstraint()
+      if shouldRebuild { buildKeyboard() }
       refreshThemeColors()
       updateKeyLabels()
       updateAppearance()
@@ -274,6 +276,25 @@ class KeyboardViewController: UIInputViewController {
   override func viewWillLayoutSubviews() {
     super.viewWillLayoutSubviews()
     nextKeyboardButton?.isHidden = !needsInputModeSwitchKey
+
+    // viewWillAppear 때 아직 확정 폭을 받지 못한 iPad 플로팅/분할 화면은 첫 레이아웃
+    // 직전에 보정한다. 다음 run loop로 미루면 한 프레임 동안 잘못된 높이가 보여 점프한다.
+    guard !isLayoutTransitionInProgress else { return }
+    guard updateLayoutReferenceWidth(view.bounds.width) else { return }
+    guard isKeyboardVisible else {
+      needsLayoutRebuildOnNextAppearance = true
+      return
+    }
+    guard !isApplyingLayoutRefresh else { return }
+    isApplyingLayoutRefresh = true
+    defer { isApplyingLayoutRefresh = false }
+
+    UIView.performWithoutAnimation {
+      installKeyboardHeightConstraint()
+      buildKeyboard()
+      updateKeyLabels()
+      updateAppearance()
+    }
   }
 
   // 기기 회전 대응: 방향이 바뀌면 메트릭이 달라지므로 높이 제약을 갱신하고
@@ -282,49 +303,30 @@ class KeyboardViewController: UIInputViewController {
     to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator
   ) {
     super.viewWillTransition(to: size, with: coordinator)
-    updateLayoutReferenceWidth(size.width)
+    isLayoutTransitionInProgress = true
+    let layoutClassChanged = updateLayoutReferenceWidth(size.width)
     coordinator.animate(
       alongsideTransition: { [weak self] _ in
         guard let self else { return }
+        guard layoutClassChanged else { return }
         guard self.isKeyboardVisible else {
           self.needsLayoutRebuildOnNextAppearance = true
           return
         }
-        self.buildKeyboard()
-        self.installKeyboardHeightConstraint()
         UIView.performWithoutAnimation {
+          self.installKeyboardHeightConstraint()
+          self.buildKeyboard()
           self.updateKeyLabels()
           self.updateAppearance()
           self.view.layoutIfNeeded()
         }
-      }, completion: nil)
-  }
-
-  override func viewDidLayoutSubviews() {
-    super.viewDidLayoutSubviews()
-    guard updateLayoutReferenceWidth(view.bounds.width) else { return }
-    guard isKeyboardVisible else {
-      needsLayoutRebuildOnNextAppearance = true
-      return
-    }
-    guard !isLayoutRefreshScheduled else {
-      needsLayoutRebuildOnNextAppearance = true
-      return
-    }
-    isLayoutRefreshScheduled = true
-    DispatchQueue.main.async { [weak self] in
-      guard let self else { return }
-      defer { self.isLayoutRefreshScheduled = false }
-      guard self.isKeyboardVisible else {
-        self.needsLayoutRebuildOnNextAppearance = true
-        return
-      }
-      self.buildKeyboard()
-      self.installKeyboardHeightConstraint()
-      self.updateKeyLabels()
-      self.updateAppearance()
-      self.view.layoutIfNeeded()
-    }
+      },
+      completion: { [weak self] _ in
+        guard let self else { return }
+        self.isLayoutTransitionInProgress = false
+        // 드물게 시스템의 최종 컨테이너 폭이 예고한 size와 다르면 다음 레이아웃 전에 보정한다.
+        self.view.setNeedsLayout()
+      })
   }
 
   override func viewWillDisappear(_ animated: Bool) {

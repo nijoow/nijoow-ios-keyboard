@@ -24,7 +24,9 @@ struct KeyboardThemePalette {
 
     return KeyboardThemePalette(
       accent: accent,
-      keyboardBackground: background.withAlphaComponent(0.98),
+      // 키보드 루트는 모든 테마에서 투명하다. 테마는 개별 키와 패널 표면에만 적용해
+      // 호스트 앱 위에 불필요한 단색 판이 생기지 않게 한다.
+      keyboardBackground: .clear,
       keyBackground: blend(neutralKey, accent, amount: 0.10).withAlphaComponent(0.40),
       specialKeyBackground: blend(neutralSpecial, accent, amount: 0.075).withAlphaComponent(0.24),
       activeKeyBackground: blend(accent, .white, amount: 0.16).withAlphaComponent(0.88),
