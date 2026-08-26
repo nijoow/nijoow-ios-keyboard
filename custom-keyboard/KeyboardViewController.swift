@@ -70,6 +70,8 @@ class KeyboardViewController: UIInputViewController {
   /// 기기 방향 추정 대신 실제 컨테이너 폭으로 레이아웃을 분류해 iPad 분할 화면도 대응한다.
   var layoutReferenceWidth: CGFloat?
   var isLayoutRefreshScheduled = false
+  var isKeyboardVisible = false
+  var needsLayoutRebuildOnNextAppearance = false
 
   var currentLayoutWidth: CGFloat {
     if let layoutReferenceWidth, layoutReferenceWidth > 0 { return layoutReferenceWidth }
@@ -242,12 +244,15 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    isKeyboardVisible = true
     KeyboardInputDiagnostics.shared.beginSession()
     let heightChanged = reloadKeyboardSettings()
     KeyboardPreferencesStore.recordExtensionActivation(hasFullAccess: hasFullAccess)
     let widthClassChanged = updateLayoutReferenceWidth(view.bounds.width)
     resetKeyboardState()
-    if heightChanged || widthClassChanged { buildKeyboard() }
+    let shouldRebuild = heightChanged || widthClassChanged || needsLayoutRebuildOnNextAppearance
+    needsLayoutRebuildOnNextAppearance = false
+    if shouldRebuild { buildKeyboard() }
     // 등장 애니메이션 시작 전에 키보드 높이 확정 (점프 방지의 핵심)
     installKeyboardHeightConstraint()
     // 키보드 등장 애니메이션 중 레이아웃 재계산 방지
@@ -258,6 +263,12 @@ class KeyboardViewController: UIInputViewController {
       view.layoutIfNeeded()
     }
     KeyboardHaptics.shared.prepare()
+    os_log(
+      "▶️ viewWillAppear fullAccess=%{public}@",
+      log: logger,
+      type: .default,
+      hasFullAccess ? "true" : "false"
+    )
   }
 
   override func viewWillLayoutSubviews() {
@@ -273,7 +284,12 @@ class KeyboardViewController: UIInputViewController {
     super.viewWillTransition(to: size, with: coordinator)
     updateLayoutReferenceWidth(size.width)
     coordinator.animate(
-      alongsideTransition: { _ in
+      alongsideTransition: { [weak self] _ in
+        guard let self else { return }
+        guard self.isKeyboardVisible else {
+          self.needsLayoutRebuildOnNextAppearance = true
+          return
+        }
         self.buildKeyboard()
         self.installKeyboardHeightConstraint()
         UIView.performWithoutAnimation {
@@ -286,11 +302,23 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewDidLayoutSubviews() {
     super.viewDidLayoutSubviews()
-    guard updateLayoutReferenceWidth(view.bounds.width), !isLayoutRefreshScheduled else { return }
+    guard updateLayoutReferenceWidth(view.bounds.width) else { return }
+    guard isKeyboardVisible else {
+      needsLayoutRebuildOnNextAppearance = true
+      return
+    }
+    guard !isLayoutRefreshScheduled else {
+      needsLayoutRebuildOnNextAppearance = true
+      return
+    }
     isLayoutRefreshScheduled = true
     DispatchQueue.main.async { [weak self] in
       guard let self else { return }
       defer { self.isLayoutRefreshScheduled = false }
+      guard self.isKeyboardVisible else {
+        self.needsLayoutRebuildOnNextAppearance = true
+        return
+      }
       self.buildKeyboard()
       self.installKeyboardHeightConstraint()
       self.updateKeyLabels()
@@ -301,10 +329,13 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
+    isKeyboardVisible = false
     os_log("🛑 viewWillDisappear", log: logger, type: .default)
-    // 키보드가 닫힐 때 활성화된 타이머 및 무거운 뷰(이모지 패널) 정리
+    // iOS는 키보드를 닫아도 확장 프로세스를 계속 살려둘 수 있다. 다음 호스트 앱이
+    // 메모리 압박을 받기 전에 타이머·무거운 뷰·파싱한 이모지 데이터를 모두 정리한다.
     resetTransientInputState()
     removeCustomPanel()
+    EmojiProvider.shared.unloadData()
   }
 
   override func didReceiveMemoryWarning() {

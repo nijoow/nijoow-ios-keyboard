@@ -27,7 +27,9 @@ private final class KeyHitMap {
       }
     }
 
-    return nearest
+    // 가장 가까운 실제 키가 시스템 상태를 바꾸는 키라면, 그 키를 건너뛰고 더 먼
+    // 일반 키로 보내지 않는다. 여백 터치는 그대로 소비하고 직접 탭만 UIKit에 맡긴다.
+    return nearest?.acceptsGapHitRouting == true ? nearest : nil
   }
 
   private func squaredDistance(from point: CGPoint, to frame: CGRect) -> CGFloat {

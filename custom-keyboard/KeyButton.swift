@@ -13,6 +13,10 @@ final class KeyButton: UIButton {
   var committedInputGeneration: UInt64?
   var accessibilityActivationHandler: (() -> Bool)?
 
+  /// 버튼 사이 여백을 이 키로 보정해도 되는지 여부다. 문자·편집 키는 true를 유지하지만,
+  /// 키보드 전환·닫기처럼 화면 전체 상태를 바꾸는 키는 실제 버튼 내부 탭만 허용한다.
+  var acceptsGapHitRouting = true
+
   // MARK: - 글래스모피즘 레이어
   // glassBodyLayer: 반투명 바디의 세로 광택(상단 하이라이트 + 하단 음영).
   // rimLayer + rimMaskLayer: 가장자리 림 라이트(상단 밝고 하단 어두운 1px 테두리)로

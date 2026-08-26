@@ -1,4 +1,8 @@
 import UIKit
+import os.log
+
+private let inputModeLogger = OSLog(
+  subsystem: "com.nijoow.keyboard", category: "input-mode")
 
 enum KeyboardActionFeedback {
   case keyPress
@@ -84,10 +88,15 @@ extension KeyboardViewController {
       performDocumentMutation { insertTextThroughProxy("\n") }
       didPerform = true
     case .dismiss:
+      flushHangul()
+      os_log(
+        "Keyboard dismiss requested by keyboard control", log: inputModeLogger, type: .default)
       dismissKeyboard()
       didPerform = true
     case .nextKeyboard:
       flushHangul()
+      os_log(
+        "Next input mode requested by keyboard control", log: inputModeLogger, type: .default)
       advanceToNextInputMode()
       didPerform = true
     }

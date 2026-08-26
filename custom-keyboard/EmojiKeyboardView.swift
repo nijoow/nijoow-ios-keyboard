@@ -42,6 +42,18 @@ final class CustomKeyboardView: UIView, UICollectionViewDataSource,
     fatalError("init(coder:) has not been implemented")
   }
 
+  /// 변형 팝업은 클리핑을 피하려고 이 뷰의 형제 뷰로 올라간다. 패널만 제거하면
+  /// 팝업이 컨트롤러 뷰에 고아로 남을 수 있으므로 수명 종료 전에 명시적으로 정리한다.
+  func prepareForRemoval() {
+    hideVariationPopup()
+    collectionView?.layer.removeAllAnimations()
+    dockScrollView?.layer.removeAllAnimations()
+  }
+
+  deinit {
+    currentPopup?.removeFromSuperview()
+  }
+
   private func setupView() {
     backgroundColor = palette.emojiBackground
     self.layer.cornerRadius = 12

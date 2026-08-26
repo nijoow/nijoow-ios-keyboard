@@ -105,6 +105,7 @@ extension KeyboardViewController {
 
   /// 이모지 패널과 외부에 떠 있는 변형 팝업을 함께 제거하고 기본 키 행을 복구한다.
   func removeCustomPanel(resetMode: Bool = true) {
+    customKeyboardView?.prepareForRemoval()
     customKeyboardView?.removeFromSuperview()
     customKeyboardView = nil
     mainContentStack?.isHidden = false
@@ -263,6 +264,7 @@ extension KeyboardViewController {
       nextKeyboardBtn.tintColor = specialTextColor
     }
     nextKeyboardBtn.accessibilityLabel = "다음 키보드"
+    nextKeyboardBtn.acceptsGapHitRouting = false
     nextKeyboardBtn.addTarget(
       self, action: #selector(nextKeyboardTapped), for: .touchUpInside)
     nextKeyboardBtn.isHidden = !needsInputModeSwitchKey
@@ -278,6 +280,7 @@ extension KeyboardViewController {
       dismissBtn.tintColor = specialTextColor
     }
     dismissBtn.accessibilityLabel = "키보드 닫기"
+    dismissBtn.acceptsGapHitRouting = false
     dismissBtn.addTarget(self, action: #selector(dismissTapped), for: .touchUpInside)
     stack.addArrangedSubview(dismissBtn)
     stack.registerKey(dismissBtn)
