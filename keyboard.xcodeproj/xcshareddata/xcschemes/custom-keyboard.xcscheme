@@ -60,8 +60,7 @@
       queueDebuggingEnableBacktraceRecording = "Yes">
       <RemoteRunnable
          runnableDebuggingMode = "0"
-         BundleIdentifier = "nijoow.custom.keyboard"
-         RemotePath = "/var/containers/Bundle/Application/E4BC4E2B-0446-409E-9CED-DC0825783541/keyboard.app">
+         BundleIdentifier = "nijoow.custom.keyboard">
       </RemoteRunnable>
       <MacroExpansion>
          <BuildableReference

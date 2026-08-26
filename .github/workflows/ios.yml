@@ -1,0 +1,47 @@
+name: iOS
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate privacy manifests
+        run: |
+          plutil -lint keyboard/PrivacyInfo.xcprivacy
+          plutil -lint custom-keyboard/PrivacyInfo.xcprivacy
+
+      - name: Select simulator
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/{print $2; exit}')
+          test -n "$DEVICE_ID"
+          echo "DEVICE_ID=$DEVICE_ID" >> "$GITHUB_ENV"
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -project keyboard.xcodeproj \
+            -scheme keyboard \
+            -destination "id=$DEVICE_ID" \
+            -derivedDataPath DerivedData/Tests \
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
+
+      - name: Build release configuration
+        run: |
+          xcodebuild build \
+            -quiet \
+            -project keyboard.xcodeproj \
+            -scheme keyboard \
+            -configuration Release \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath DerivedData/Release \
+            CODE_SIGNING_ALLOWED=NO \
+            SWIFT_TREAT_WARNINGS_AS_ERRORS=YES
