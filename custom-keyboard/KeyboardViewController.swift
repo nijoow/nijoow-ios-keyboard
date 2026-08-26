@@ -1,8 +1,7 @@
 import UIKit
-import AudioToolbox
 import os.log
 
-let logger = OSLog(subsystem: "com.nijoow.keyboard", category: "lifecycle")
+private let logger = OSLog(subsystem: "com.nijoow.keyboard", category: "lifecycle")
 
 @objc(KeyboardViewController)
 class KeyboardViewController: UIInputViewController {
@@ -11,21 +10,21 @@ class KeyboardViewController: UIInputViewController {
   var isHangul: Bool = true
   var isShifted: Bool = false
   var isShiftLocked: Bool = false
-  var lastShiftTapTime: Date? // 시프트 더블 탭 판정용
+  var lastShiftTapTime: Date?  // 시프트 더블 탭 판정용
   var isSymbol: Bool = false
   var isCustom: Bool = false
-  
-  var automata = HangulAutomata();
-  var composingChar: Character? = nil;
+
+  let automata = HangulAutomata()
   /// 현재 문서에 표시 중인 한글 조합 문자열(밑줄 없는 조합 구현용).
   /// prefix-diff 삭제/삽입의 기준이 된다. flush 시 빈 문자열로 초기화.
-  var composedText: String = "";
-  var allKeyButtons: [KeyButton] = [];
-  var shiftButton: KeyButton?;
-  var spaceButton: KeyButton?;
+  var composedText: String = ""
+  var allKeyButtons: [KeyButton] = []
+  var shiftButton: KeyButton?
+  var spaceButton: KeyButton?
+  var nextKeyboardButton: KeyButton?
 
   // 스페이스바 드래그(커서 이동) 중 다른 키를 덮는 딤 오버레이
-  var spaceDragOverlay: SpaceDragOverlayView?;
+  var spaceDragOverlay: SpaceDragOverlayView?
 
   // MARK: - 레이아웃 캐시 (메모리 최적화)
   var utilityRow: UIView?
@@ -48,6 +47,18 @@ class KeyboardViewController: UIInputViewController {
     var cornerRadius: CGFloat
     var utilCornerRadius: CGFloat
     var keyFontSize: CGFloat
+
+    func applying(_ height: KeyboardHeightPreset) -> LayoutMetrics {
+      LayoutMetrics(
+        utilRowH: utilRowH * height.rowScale,
+        numberRowH: numberRowH * height.rowScale,
+        mainKeyH: mainKeyH * height.rowScale,
+        bottomRowH: bottomRowH * height.rowScale,
+        cornerRadius: cornerRadius,
+        utilCornerRadius: utilCornerRadius,
+        keyFontSize: keyFontSize * height.fontScale
+      )
+    }
   }
 
   /// 화면이 가로 방향인지. (UIScreen.main은 iOS 26에서 deprecated이므로 사용하지 않음)
@@ -70,29 +81,35 @@ class KeyboardViewController: UIInputViewController {
   }
 
   var layoutMetrics: LayoutMetrics {
+    let baseMetrics: LayoutMetrics
     if deviceIsPad {
       // 아이패드: 큰 화면에 맞춰 행 높이·폰트를 키워 키를 충분히 크게
       if isLandscapeScreen {
-        return LayoutMetrics(utilRowH: 46, numberRowH: 52, mainKeyH: 60, bottomRowH: 54,
-                             cornerRadius: 16, utilCornerRadius: 13, keyFontSize: 26)
+        baseMetrics = LayoutMetrics(
+          utilRowH: 46, numberRowH: 52, mainKeyH: 60, bottomRowH: 54,
+          cornerRadius: 16, utilCornerRadius: 13, keyFontSize: 26)
       } else {
-        return LayoutMetrics(utilRowH: 42, numberRowH: 46, mainKeyH: 52, bottomRowH: 48,
-                             cornerRadius: 14, utilCornerRadius: 11, keyFontSize: 24)
+        baseMetrics = LayoutMetrics(
+          utilRowH: 42, numberRowH: 46, mainKeyH: 52, bottomRowH: 48,
+          cornerRadius: 14, utilCornerRadius: 11, keyFontSize: 24)
       }
     } else if isLandscapeScreen {
       // 아이폰 가로: 세로(기존 고정 높이)와 컴팩트의 중간 정도로
-      return LayoutMetrics(utilRowH: 30, numberRowH: 32, mainKeyH: 34, bottomRowH: 32,
-                           cornerRadius: 10, utilCornerRadius: 7, keyFontSize: 18)
+      baseMetrics = LayoutMetrics(
+        utilRowH: 30, numberRowH: 32, mainKeyH: 34, bottomRowH: 32,
+        cornerRadius: 10, utilCornerRadius: 7, keyFontSize: 18)
     } else {
       // 아이폰 세로 (기존 값 유지)
-      return LayoutMetrics(utilRowH: KeyboardConstants.UTIL_ROW_H,
-                           numberRowH: KeyboardConstants.NUMBER_ROW_H,
-                           mainKeyH: KeyboardConstants.MAIN_KEY_H,
-                           bottomRowH: KeyboardConstants.BOTTOM_ROW_H,
-                           cornerRadius: KeyboardConstants.CORNER_RADIUS,
-                           utilCornerRadius: KeyboardConstants.CORNER_RADIUS - 3,
-                           keyFontSize: KeyboardConstants.KEY_FONT_SIZE)
+      baseMetrics = LayoutMetrics(
+        utilRowH: KeyboardConstants.utilityRowHeight,
+        numberRowH: KeyboardConstants.numberRowHeight,
+        mainKeyH: KeyboardConstants.mainKeyHeight,
+        bottomRowH: KeyboardConstants.bottomRowHeight,
+        cornerRadius: KeyboardConstants.cornerRadius,
+        utilCornerRadius: KeyboardConstants.cornerRadius - 3,
+        keyFontSize: KeyboardConstants.keyFontSize)
     }
+    return baseMetrics.applying(keyboardSettings.height)
   }
 
   /// 레이아웃 메트릭으로부터 역산한 키보드 전체 높이.
@@ -119,62 +136,65 @@ class KeyboardViewController: UIInputViewController {
   var backspaceStartTimer: Timer?
   var backspaceTimer: Timer?
   var backspaceRepeatCount = 0
-  
+
   // 커서 이동 가속 관련
   var cursorTimer: Timer?
   var cursorStartTimer: Timer?
   var cursorRepeatCount = 0
-  
-  // 스페이스바 드래그 커서 이동 관련
-  var accumulatedPanX: CGFloat = 0;
-  var isSpaceDragging: Bool = false;
-  
-  // 키보드가 직접 텍스트를 조작 중일 때 selectionDidChange 리셋을 방지하는 카운터
-  private var suppressionCount = 0;
-  var isSuppressingSelectionChange: Bool {
-    return suppressionCount > 0
-  }
-  
-  func startSuppressingSelectionChange() {
-    suppressionCount += 1
-  }
-  
-  func stopSuppressingSelectionChange() {
-    suppressionCount = max(0, suppressionCount - 1)
-  }
 
-  func performWithoutSelectionChange(_ action: () -> Void) {
-    startSuppressingSelectionChange()
-    defer { stopSuppressingSelectionChange() }
+  // 스페이스바 드래그 커서 이동 관련
+  var accumulatedPanX: CGFloat = 0
+  var isSpaceCursorModeActive = false
+  var shouldSuppressSpaceTap = false
+
+  // 키보드가 직접 문서를 조작하는 동안 동기 selection/text 콜백을 구분하는 중첩 카운터.
+  private var documentMutationDepth = 0
+  var isPerformingDocumentMutation: Bool { documentMutationDepth > 0 }
+
+  func performDocumentMutation(_ action: () -> Void) {
+    documentMutationDepth += 1
+    defer { documentMutationDepth = max(0, documentMutationDepth - 1) }
     action()
   }
-  
-  // MARK: - 테마 관련 감지
+
+  // MARK: - 패널 상태
   var wasCustom = false
   var wasSymbol = false
 
-  // 라이트모드 제거: 호스트 앱 외관과 무관하게 항상 다크 색상으로 통일한다.
-  var isDarkMode: Bool { return true }
-
+  // MARK: - 사용자 설정
+  private(set) var keyboardSettings = KeyboardSettings.default
+  private(set) var themePalette = KeyboardThemePalette.make(for: .default)
 
   // MARK: - 색상 테마 (캐시됨)
   // 매번 새 UIColor를 만드는 대신, 테마 변경 시에만 갱신
-  private(set) var keyGlassColor: UIColor = .clear;
-  private(set) var specialGlassColor: UIColor = .clear;
-  private(set) var activeGlassColor: UIColor = .clear;
-  private(set) var activeTextColor: UIColor = .white;
-  private(set) var keyTextColor: UIColor = .white;
-  private(set) var specialTextColor: UIColor = .gray;
+  private(set) var keyGlassColor: UIColor = .clear
+  private(set) var specialGlassColor: UIColor = .clear
+  private(set) var activeGlassColor: UIColor = .clear
+  private(set) var activeTextColor: UIColor = .white
+  private(set) var keyTextColor: UIColor = .white
+  private(set) var specialTextColor: UIColor = .gray
 
   /// 테마 색상을 현재 다크모드 상태에 맞게 한 번에 갱신
   func refreshThemeColors() {
-    // 라이트모드 제거: 항상 다크 색상으로 통일
-    keyGlassColor = UIColor(red: 0.12, green: 0.12, blue: 0.14, alpha: 0.38);
-    specialGlassColor = UIColor(red: 0.01, green: 0.01, blue: 0.01, alpha: 0.18);
-    activeGlassColor = UIColor(white: 0.45, alpha: 0.85);
-    keyTextColor = .white;
-    specialTextColor = UIColor(white: 0.75, alpha: 1.0);
-    activeTextColor = keyTextColor;
+    themePalette = KeyboardThemePalette.make(for: keyboardSettings)
+    keyGlassColor = themePalette.keyBackground
+    specialGlassColor = themePalette.specialKeyBackground
+    activeGlassColor = themePalette.activeKeyBackground
+    keyTextColor = themePalette.keyText
+    specialTextColor = themePalette.specialKeyText
+    activeTextColor = keyTextColor
+    view.backgroundColor = themePalette.keyboardBackground
+  }
+
+  /// 앱에서 저장한 설정을 키보드가 나타날 때 한 번만 읽는다.
+  /// 입력 중에는 공유 저장소나 색상 파생 로직에 접근하지 않는다.
+  @discardableResult
+  func reloadKeyboardSettings() -> Bool {
+    let previousHeight = keyboardSettings.height
+    keyboardSettings = KeyboardPreferencesStore.load()
+    KeyboardHaptics.shared.configure(isEnabled: keyboardSettings.hapticsEnabled)
+    refreshThemeColors()
+    return previousHeight != keyboardSettings.height
   }
 
   // MARK: - Lifecycle
@@ -183,7 +203,7 @@ class KeyboardViewController: UIInputViewController {
     super.init(nibName: nibNameOrNil, bundle: nibBundleOrNil)
     os_log("🟢 KeyboardViewController INIT", log: logger, type: .default)
   }
-  
+
   required init?(coder: NSCoder) {
     super.init(coder: coder)
     os_log("🟢 KeyboardViewController INIT(coder)", log: logger, type: .default)
@@ -192,19 +212,10 @@ class KeyboardViewController: UIInputViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
-    // 테마 색상 초기화
-    refreshThemeColors()
+    reloadKeyboardSettings()
 
     buildKeyboard()
 
-    if #available(iOS 17.0, *) {
-      registerForTraitChanges([UITraitUserInterfaceStyle.self], target: self, action: #selector(themeDidChange))
-    }
-  }
-
-  @objc private func themeDidChange() {
-    refreshThemeColors()
-    rebuildKeyboard()
   }
 
   // MARK: - 레이아웃 설정
@@ -217,7 +228,9 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    let heightChanged = reloadKeyboardSettings()
     resetKeyboardState()
+    if heightChanged { buildKeyboard() }
     // 등장 애니메이션 시작 전에 키보드 높이 확정 (점프 방지의 핵심)
     installKeyboardHeightConstraint()
     // 키보드 등장 애니메이션 중 레이아웃 재계산 방지
@@ -227,127 +240,119 @@ class KeyboardViewController: UIInputViewController {
       updateAppearance()
       view.layoutIfNeeded()
     }
+    KeyboardHaptics.shared.prepare()
+  }
+
+  override func viewWillLayoutSubviews() {
+    super.viewWillLayoutSubviews()
+    nextKeyboardButton?.isHidden = !needsInputModeSwitchKey
   }
 
   // 기기 회전 대응: 방향이 바뀌면 메트릭이 달라지므로 높이 제약을 갱신하고
   // 레이아웃을 다시 빌드해 행 높이/모서리/폰트를 새 방향에 맞춘다.
-  override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+  override func viewWillTransition(
+    to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator
+  ) {
     super.viewWillTransition(to: size, with: coordinator)
-    coordinator.animate(alongsideTransition: { _ in
-      self.buildKeyboard()
-      self.installKeyboardHeightConstraint()
-      UIView.performWithoutAnimation {
-        self.updateKeyLabels()
-        self.updateAppearance()
-        self.view.layoutIfNeeded()
-      }
-    }, completion: nil)
+    coordinator.animate(
+      alongsideTransition: { _ in
+        self.buildKeyboard()
+        self.installKeyboardHeightConstraint()
+        UIView.performWithoutAnimation {
+          self.updateKeyLabels()
+          self.updateAppearance()
+          self.view.layoutIfNeeded()
+        }
+      }, completion: nil)
   }
 
   override func viewWillDisappear(_ animated: Bool) {
     super.viewWillDisappear(animated)
     os_log("🛑 viewWillDisappear", log: logger, type: .default)
     // 키보드가 닫힐 때 활성화된 타이머 및 무거운 뷰(이모지 패널) 정리
-    stopAllTimers()
-    endSpaceDragVisual()
-    if customKeyboardView != nil {
-      customKeyboardView?.removeFromSuperview()
-      customKeyboardView = nil
-      isCustom = false
-    }
+    resetTransientInputState()
+    removeCustomPanel()
   }
 
   override func didReceiveMemoryWarning() {
     super.didReceiveMemoryWarning()
+    os_log("⚠️ didReceiveMemoryWarning", log: logger, type: .error)
     // 메모리 부족 시 이모지 패널 해제 + 이모지 데이터 언로드
-    if customKeyboardView != nil {
-      customKeyboardView?.removeFromSuperview()
-      customKeyboardView = nil
-      isCustom = false
-      rebuildKeyboard()
-    }
+    resetTransientInputState()
+    removeCustomPanel()
     EmojiProvider.shared.unloadData()
   }
 
   override func textDidChange(_ textInput: UITextInput?) {
     super.textDidChange(textInput)
-
-    // 키보드가 직접 입력 중인 변경은 무시한다. 우리가 매 키마다 수행하는
-    // deleteBackward/insertText도 textDidChange를 유발하므로, 여기서 proxy 컨텍스트를
-    // 조회하면 입력 핫패스마다 불필요한 IPC가 누적되어 입력이 씹힌다.
-    guard !isSuppressingSelectionChange else { return }
-
-    // 외부적인 변경(터치로 커서 이동 등) 감지 시 한글 조합 상태 종결
-    flushHangul()
-
-    // 외부 삭제 감지 (카카오톡 전송 등)
-    let before = textDocumentProxy.documentContextBeforeInput ?? ""
-    let after = textDocumentProxy.documentContextAfterInput ?? ""
-    if before.isEmpty && after.isEmpty {
-      if composingChar != nil || !automata.jamoStack.isEmpty {
-        resetKeyboardState();
-        rebuildKeyboard();
-      }
-    }
-  }
-
-  override func selectionWillChange(_ textInput: UITextInput?) {
-    super.selectionWillChange(textInput);
-
-    // 외부적인 선택 변경(사용자 터치 등)이 발생하면 현재 한글 조합 상태를 즉시 종결
-    guard !isSuppressingSelectionChange else { return; }
-    flushHangul();
+    guard !isPerformingDocumentMutation else { return }
+    reconcileCompositionWithDocument()
   }
 
   override func selectionDidChange(_ textInput: UITextInput?) {
-    super.selectionDidChange(textInput);
-
-    // 키보드가 직접 조작 중인 경우가 아니면 한글 조합 상태 초기화
-    guard !isSuppressingSelectionChange else { return; }
-    flushHangul();
+    super.selectionDidChange(textInput)
+    guard !isPerformingDocumentMutation else { return }
+    reconcileCompositionWithDocument()
   }
-
-  @available(iOS, introduced: 8.0, deprecated: 17.0, message: "Use trait change registration APIs instead")
-  override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-    super.traitCollectionDidChange(previousTraitCollection)
-    if #unavailable(iOS 17.0) {
-      if self.traitCollection.hasDifferentColorAppearance(comparedTo: previousTraitCollection) {
-        refreshThemeColors()
-        rebuildKeyboard()
-      }
-    }
-  }
-
-
 
   // MARK: - Private 헬퍼
-  private func stopAllTimers() {
+  func stopAllTimers() {
     backspaceStartTimer?.invalidate()
     backspaceTimer?.invalidate()
     cursorStartTimer?.invalidate()
     cursorTimer?.invalidate()
+    backspaceStartTimer = nil
+    backspaceTimer = nil
+    cursorStartTimer = nil
+    cursorTimer = nil
+  }
+
+  /// 화면 전환·회전·재빌드에 걸쳐 남으면 다음 입력을 막을 수 있는 일시 상태를 한 번에 정리한다.
+  func resetTransientInputState() {
+    stopAllTimers()
+    hidePopup()
+    endSpaceDragVisual()
+    accumulatedPanX = 0
+    isSpaceCursorModeActive = false
+    shouldSuppressSpaceTap = false
   }
 
   private func resetKeyboardState() {
-    automata.reset();
-    composingChar = nil;
-    composedText = "";
-    isShifted = false;
-    isShiftLocked = false;
-    
-    if let lastLang = UserDefaults.standard.object(forKey: "isHangulState") as? Bool {
+    flushHangul()
+    isShifted = false
+    isShiftLocked = false
+
+    if let lastLang = UserDefaults.standard.object(forKey: KeyboardConstants.Storage.hangulMode)
+      as? Bool
+    {
       isHangul = lastLang
     } else {
       isHangul = true
     }
   }
 
+  /// 키보드가 일으킨 문서 콜백은 조합을 유지하고, 외부 편집/커서 이동으로 실제 문서가
+  /// 달라졌을 때만 조합 상태를 끝낸다. 동기 플래그만으로는 늦게 도착하는 호스트 앱의
+  /// 콜백을 구분할 수 없으므로 문서의 현재 접미사와 직접 대조한다.
+  private func reconcileCompositionWithDocument() {
+    guard !composedText.isEmpty else { return }
+    guard let context = textDocumentProxy.documentContextBeforeInput, !context.isEmpty else {
+      flushHangul()
+      return
+    }
+
+    // 일부 호스트 앱은 커서 앞 문맥을 일정 길이로 잘라 제공한다. 조합 문자열이 그보다
+    // 길더라도 보이는 범위의 접미사가 같으면 현재 조합이 유지된 것으로 판단한다.
+    let visibleComposition = composedText.suffix(context.count)
+    guard context.hasSuffix(visibleComposition)
+    else {
+      flushHangul()
+      return
+    }
+  }
+
   deinit {
     os_log("🔴 KeyboardViewController DEINIT", log: logger, type: .default)
     stopAllTimers()
-    
-    // [메모리 최적화] OS가 뷰의 백킹스토어를 캐싱하는 것을 방지하기 위해 계층 구조 파괴
-    view.subviews.forEach { $0.removeFromSuperview() }
-    allKeyButtons.removeAll()
   }
 }

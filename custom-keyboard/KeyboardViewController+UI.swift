@@ -1,11 +1,16 @@
 import UIKit
 
 extension KeyboardViewController {
-  
+
   // MARK: - 레이아웃 빌드
-  
+
   func buildKeyboard() {
-    view.subviews.forEach { $0.removeFromSuperview() }
+    resetTransientInputState()
+    // 이모지 변형 팝업은 키보드 컨테이너의 형제 뷰이므로 일반 subview 제거 전에 정리한다.
+    customKeyboardView?.removeFromSuperview()
+    for subview in view.subviews {
+      subview.removeFromSuperview()
+    }
     utilityRow = nil
     bottomRow = nil
     mainContentStack = nil
@@ -13,7 +18,8 @@ extension KeyboardViewController {
     allKeyButtons.removeAll()
     shiftButton = nil
     spaceButton = nil
-    
+    nextKeyboardButton = nil
+
     // 1. 바톰 행 (하단 고정)
     let botRow = makeBottomRow()
     botRow.translatesAutoresizingMaskIntoConstraints = false
@@ -24,14 +30,14 @@ extension KeyboardViewController {
       botRow.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -6),
       botRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
       botRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
-      botRow.heightAnchor.constraint(equalToConstant: layoutMetrics.bottomRowH)
+      botRow.heightAnchor.constraint(equalToConstant: layoutMetrics.bottomRowH),
     ])
     botRow.setContentHuggingPriority(.required, for: .vertical)
     botRow.setContentCompressionResistancePriority(.required, for: .vertical)
 
     // 2. 메인 콘텐츠 스택 (botRow 위로 쌓기)
     let contentStack = setupMainContentStack(above: botRow)
-    
+
     // 3. 유틸리티 행 (contentStack 위로 쌓기)
     let utilRow = makeUtilityRow()
     utilRow.translatesAutoresizingMaskIntoConstraints = false
@@ -42,7 +48,7 @@ extension KeyboardViewController {
       utilRow.bottomAnchor.constraint(equalTo: contentStack.topAnchor, constant: -7),
       utilRow.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
       utilRow.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
-      utilRow.heightAnchor.constraint(equalToConstant: layoutMetrics.utilRowH)
+      utilRow.heightAnchor.constraint(equalToConstant: layoutMetrics.utilRowH),
     ])
     utilRow.setContentHuggingPriority(.required, for: .vertical)
     utilRow.setContentCompressionResistancePriority(.required, for: .vertical)
@@ -66,6 +72,7 @@ extension KeyboardViewController {
       c.isActive = true
     } else {
       let c = view.heightAnchor.constraint(equalToConstant: desiredKeyboardHeight)
+      c.identifier = "CustomKeyboard.height"
       // 시스템이 inputView에 거는 높이 제약과 충돌해 등장/전환 시 레이아웃이 꼬이는 것을
       // 막기 위해 required(1000)가 아닌 999로 건다. (Apple 권장)
       c.priority = UILayoutPriority(999)
@@ -91,15 +98,23 @@ extension KeyboardViewController {
       mainContentStack?.isHidden = false
 
       // 2. 이모지 패널 등 무거운 요소 메모리 해제
-      if let existingCustom = customKeyboardView {
-        existingCustom.removeFromSuperview()
-        customKeyboardView = nil
-      }
+      removeCustomPanel(resetMode: false)
+    }
+  }
+
+  /// 이모지 패널과 외부에 떠 있는 변형 팝업을 함께 제거하고 기본 키 행을 복구한다.
+  func removeCustomPanel(resetMode: Bool = true) {
+    customKeyboardView?.removeFromSuperview()
+    customKeyboardView = nil
+    mainContentStack?.isHidden = false
+    if resetMode {
+      isCustom = false
+      wasCustom = false
     }
   }
 
   private func setupCustomPanel(above botRow: UIView) {
-    let customView = CustomKeyboardView(isDarkMode: isDarkMode)
+    let customView = CustomKeyboardView(palette: themePalette)
     customView.delegate = self
     customView.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(customView)
@@ -109,10 +124,11 @@ extension KeyboardViewController {
     var constraints: [NSLayoutConstraint] = [
       customView.bottomAnchor.constraint(equalTo: botRow.topAnchor, constant: -7),
       customView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
-      customView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6)
+      customView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
     ]
     if let utilRow = utilityRow {
-      constraints.append(customView.topAnchor.constraint(equalTo: utilRow.bottomAnchor, constant: 7))
+      constraints.append(
+        customView.topAnchor.constraint(equalTo: utilRow.bottomAnchor, constant: 7))
     }
     NSLayoutConstraint.activate(constraints)
   }
@@ -123,9 +139,15 @@ extension KeyboardViewController {
     let contentStack = ExpandedHitStackView()
     contentStack.axis = .vertical
     contentStack.distribution = .fill
-    contentStack.spacing = 5;
+    contentStack.spacing = 5
+    contentStack.hitTestInsets = UIEdgeInsets(
+      top: -KeyboardConstants.Interaction.sectionHalfSpacing,
+      left: -KeyboardConstants.Interaction.horizontalHitSlop,
+      bottom: -KeyboardConstants.Interaction.sectionHalfSpacing,
+      right: -KeyboardConstants.Interaction.horizontalHitSlop
+    )
     contentStack.translatesAutoresizingMaskIntoConstraints = false
-    contentStack.clipsToBounds = false; // 자식들의 확장된 터치 영역 허용
+    contentStack.clipsToBounds = false  // 자식들의 확장된 터치 영역 허용
     view.addSubview(contentStack)
     self.mainContentStack = contentStack
 
@@ -134,7 +156,7 @@ extension KeyboardViewController {
     NSLayoutConstraint.activate([
       contentStack.bottomAnchor.constraint(equalTo: botRow.topAnchor, constant: -7),
       contentStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 6),
-      contentStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6)
+      contentStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -6),
     ])
 
     let numRow = makeNumberRow()
@@ -142,18 +164,27 @@ extension KeyboardViewController {
 
     let keyRows: [UIView]
     if isSymbol {
-      let rows = isShifted ?
-        [KeyboardConstants.SYM_ROW1_SHIFTED, KeyboardConstants.SYM_ROW2_SHIFTED, KeyboardConstants.SYM_ROW3_SHIFTED] :
-        [KeyboardConstants.SYM_ROW1_NORMAL, KeyboardConstants.SYM_ROW2_NORMAL, KeyboardConstants.SYM_ROW3_NORMAL]
+      let rows =
+        isShifted
+        ? [
+          KeyboardConstants.shiftedSymbolRow1, KeyboardConstants.shiftedSymbolRow2,
+          KeyboardConstants.shiftedSymbolRow3,
+        ]
+        : [
+          KeyboardConstants.symbolRow1, KeyboardConstants.symbolRow2,
+          KeyboardConstants.symbolRow3,
+        ]
 
       let v1 = makeEqualRow(keys: rows[0], rowOffset: 400)
-      let v2 = makeLetterRowStack(rows[1], rowOffset: 500) // 9키 대응 로직 사용
-      let v3 = makeShiftRow(middleKeys: rows[2], keyValues: rows[2], rowOffset: 600) // 7키 대응 로직 사용
+      let v2 = makeLetterRowStack(rows[1], rowOffset: 500)  // 9키 대응 로직 사용
+      let v3 = makeShiftRow(middleKeys: rows[2], keyValues: rows[2], rowOffset: 600)  // 7키 대응 로직 사용
       keyRows = [v1, v2, v3]
     } else {
       keyRows = [makeLetterRow1(), makeLetterRow2(), makeLetterShiftRow()]
     }
-    keyRows.forEach { contentStack.addArrangedSubview($0) }
+    for row in keyRows {
+      contentStack.addArrangedSubview(row)
+    }
 
     // 행 높이를 절대값이 아닌 '비율'로 묶는다. 키 행 3개는 서로 같고, 숫자 행은 키 행 대비
     // 38/42 비율. 스택이 시스템 높이에 맞춰 늘어나면 모든 행이 비례 확대/축소된다.
@@ -176,46 +207,79 @@ extension KeyboardViewController {
   }
 
   // MARK: - 요소 생성
-  
+
   func makeUtilityRow() -> UIView {
     let stack = ExpandedHitStackView()
     stack.axis = .horizontal
     stack.distribution = .fillEqually
-    stack.spacing = 5;
-    stack.clipsToBounds = false;
+    stack.spacing = 5
+    stack.hitTestInsets = UIEdgeInsets(
+      top: -KeyboardConstants.Interaction.keyboardEdgeSpacing,
+      left: -KeyboardConstants.Interaction.horizontalHitSlop,
+      bottom: -KeyboardConstants.Interaction.sectionHalfSpacing,
+      right: -KeyboardConstants.Interaction.horizontalHitSlop
+    )
+    stack.clipsToBounds = false
 
     let cursors: [(CursorIconType, String)] = [
-      (.lineStart, "cursor_line_start"), (.left, "cursor_left"),
-      (.right, "cursor_right"), (.lineEnd, "cursor_line_end")
+      (.lineStart, KeyboardConstants.KeyID.cursorLineStart),
+      (.left, KeyboardConstants.KeyID.cursorLeft),
+      (.right, KeyboardConstants.KeyID.cursorRight),
+      (.lineEnd, KeyboardConstants.KeyID.cursorLineEnd),
     ]
-    
+
     for (type, id) in cursors {
       let btn = makeGlassButton(title: "", id: id, isSpecial: true)
       let img = drawCursorImage(type: type, size: CGSize(width: 32, height: 32))
       btn.setImage(img.withRenderingMode(.alwaysTemplate), for: .normal)
       btn.tintColor = specialTextColor
-      
+
       // 가속 및 스마트 이동을 위한 핸들러 연결
       btn.accessibilityIdentifier = id
+      btn.accessibilityLabel = cursorAccessibilityLabel(for: type)
       btn.addTarget(self, action: #selector(cursorTouchDown(_:)), for: .touchDown)
-      btn.addTarget(self, action: #selector(cursorTouchUp(_:)), for: [.touchUpInside, .touchUpOutside, .touchCancel])
-      
+      btn.addTarget(
+        self, action: #selector(cursorTouchUp(_:)),
+        for: [.touchUpInside, .touchUpOutside, .touchCancel])
+
       stack.addArrangedSubview(btn)
+      stack.registerKey(btn)
     }
 
-    let customBtn = makeGlassButton(title: "☺︎", id: "custom", isSpecial: true, fontSize: 26)
+    let customBtn = makeGlassButton(
+      title: "☺︎", id: KeyboardConstants.KeyID.custom, isSpecial: true, fontSize: 26)
+    customBtn.accessibilityLabel = "이모지"
     if isCustom { customBtn.backgroundColor = activeGlassColor }
     customBtn.addTarget(self, action: #selector(customTapped), for: .touchUpInside)
     stack.addArrangedSubview(customBtn)
+    stack.registerKey(customBtn)
 
-    let dismissBtn = makeGlassButton(title: "", id: "dismiss", isSpecial: true)
+    let nextKeyboardBtn = makeGlassButton(
+      title: "", id: KeyboardConstants.KeyID.nextKeyboard, isSpecial: true)
+    let globeConfig = UIImage.SymbolConfiguration(pointSize: 15, weight: .medium)
+    if let image = UIImage(systemName: "globe", withConfiguration: globeConfig) {
+      nextKeyboardBtn.setImage(image.withRenderingMode(.alwaysTemplate), for: .normal)
+      nextKeyboardBtn.tintColor = specialTextColor
+    }
+    nextKeyboardBtn.accessibilityLabel = "다음 키보드"
+    nextKeyboardBtn.addTarget(
+      self, action: #selector(nextKeyboardTapped), for: .touchUpInside)
+    nextKeyboardBtn.isHidden = !needsInputModeSwitchKey
+    nextKeyboardButton = nextKeyboardBtn
+    stack.addArrangedSubview(nextKeyboardBtn)
+    stack.registerKey(nextKeyboardBtn)
+
+    let dismissBtn = makeGlassButton(
+      title: "", id: KeyboardConstants.KeyID.dismiss, isSpecial: true)
     let config = UIImage.SymbolConfiguration(pointSize: 14, weight: .medium)
     if let img = UIImage(systemName: "keyboard.chevron.compact.down", withConfiguration: config) {
       dismissBtn.setImage(img.withRenderingMode(.alwaysTemplate), for: .normal)
       dismissBtn.tintColor = specialTextColor
     }
+    dismissBtn.accessibilityLabel = "키보드 닫기"
     dismissBtn.addTarget(self, action: #selector(dismissTapped), for: .touchUpInside)
     stack.addArrangedSubview(dismissBtn)
+    stack.registerKey(dismissBtn)
 
     // 최상단 유틸 버튼(커서/이모지/키보드 닫기)은 일반 키보다 모서리를 살짝 더 각지게
     let utilRadius = layoutMetrics.utilCornerRadius
@@ -226,38 +290,69 @@ extension KeyboardViewController {
     return stack
   }
 
+  private func cursorAccessibilityLabel(for type: CursorIconType) -> String {
+    switch type {
+    case .lineStart: "줄 처음으로 이동"
+    case .left: "커서 왼쪽 이동"
+    case .right: "커서 오른쪽 이동"
+    case .lineEnd: "줄 끝으로 이동"
+    }
+  }
+
   func makeBottomRow() -> UIView {
     let container = ExpandedHitView()
-    container.clipsToBounds = false // 가장자리 터치 및 애니메이션 잘림 방지
+    container.hitTestInsets = UIEdgeInsets(
+      top: -KeyboardConstants.Interaction.sectionHalfSpacing,
+      left: -KeyboardConstants.Interaction.horizontalHitSlop,
+      bottom: -KeyboardConstants.Interaction.keyboardEdgeSpacing,
+      right: -KeyboardConstants.Interaction.horizontalHitSlop
+    )
+    container.clipsToBounds = false  // 가장자리 터치 및 애니메이션 잘림 방지
     let symBtnTitle = isSymbol ? (isHangul ? "한글" : "ENG") : "♥︎"
-    let symBtn = makeGlassButton(title: symBtnTitle, id: "symbol", isSpecial: true, tag: 201, fontSize:16)
+    let symBtn = makeGlassButton(
+      title: symBtnTitle, id: KeyboardConstants.KeyID.symbol, isSpecial: true, tag: 201,
+      fontSize: 16)
+    symBtn.accessibilityLabel = "기호 키보드"
     symBtn.addTarget(self, action: #selector(symbolTapped), for: .touchUpInside)
 
-    let langBtn = makeGlassButton(title: isHangul ? "ENG" : "한글", id: "lang", isSpecial: true, tag: 202, fontSize:16)
+    let langBtn = makeGlassButton(
+      title: isHangul ? "ENG" : "한글", id: KeyboardConstants.KeyID.language, isSpecial: true,
+      tag: 202, fontSize: 16)
+    langBtn.accessibilityLabel = "한글 영문 전환"
     langBtn.addTarget(self, action: #selector(langTapped), for: .touchUpInside)
 
-    let enterBtn = makeGlassButton(title: "↵", id: "enter", isSpecial: true, tag: 205);
-    enterBtn.addTarget(self, action: #selector(enterTapped), for: .touchUpInside);
+    let enterBtn = makeGlassButton(
+      title: "↵", id: KeyboardConstants.KeyID.enter, isSpecial: true, tag: 205)
+    enterBtn.accessibilityLabel = "줄바꿈"
+    enterBtn.addTarget(self, action: #selector(enterTapped), for: .touchUpInside)
 
-    let spaceBtn = makeGlassButton(title: "", id: " ", isSpecial: false, tag: 203);
-    spaceButton = spaceBtn;
-    let dotBtn = makeGlassButton(title: ".", id: ".", isSpecial: false, tag: 204);
+    let spaceBtn = makeGlassButton(
+      title: "", id: KeyboardConstants.KeyID.space, isSpecial: false, tag: 203)
+    spaceBtn.accessibilityLabel = "스페이스"
+    // 커서 모드 억제 플래그는 한 번의 스페이스 터치를 추적하므로 같은 키의 다중 터치는 받지 않는다.
+    spaceBtn.isMultipleTouchEnabled = false
+    spaceButton = spaceBtn
+    let dotBtn = makeGlassButton(title: ".", id: ".", isSpecial: false, tag: 204)
 
-    let pan = UIPanGestureRecognizer(target: self, action: #selector(handleSpacePan(_:)));
-    pan.delaysTouchesBegan = false;
-    pan.delegate = self;
-    spaceBtn.addGestureRecognizer(pan);
+    let pan = UIPanGestureRecognizer(target: self, action: #selector(handleSpacePan(_:)))
+    pan.delaysTouchesBegan = false
+    pan.cancelsTouchesInView = false
+    pan.delegate = self
+    spaceBtn.addGestureRecognizer(pan)
 
     // 꾹 누르면(롱프레스) 드래그 없이도 커서 이동 모드로 진입.
     // 롱프레스가 인식된 뒤에도 pan이 동시 인식되어야 드래그로 커서가 움직인다(delegate).
-    let spaceLongPress = UILongPressGestureRecognizer(target: self, action: #selector(handleSpaceLongPress(_:)));
-    spaceLongPress.minimumPressDuration = 0.3;
-    spaceLongPress.delegate = self;
-    spaceBtn.addGestureRecognizer(spaceLongPress);
+    let spaceLongPress = UILongPressGestureRecognizer(
+      target: self, action: #selector(handleSpaceLongPress(_:)))
+    spaceLongPress.minimumPressDuration = KeyboardConstants.Interaction.spaceLongPressDuration
+    spaceLongPress.cancelsTouchesInView = false
+    spaceLongPress.delegate = self
+    spaceBtn.addGestureRecognizer(spaceLongPress)
 
-    [symBtn, langBtn, spaceBtn, dotBtn, enterBtn].forEach {
-      $0.translatesAutoresizingMaskIntoConstraints = false
-      container.addSubview($0)
+    for button in [symBtn, langBtn, spaceBtn, dotBtn, enterBtn] {
+      button.translatesAutoresizingMaskIntoConstraints = false
+      container.addSubview(button)
+      container.registerKey(button)
     }
 
     NSLayoutConstraint.activate([
@@ -284,7 +379,7 @@ extension KeyboardViewController {
       spaceBtn.leadingAnchor.constraint(equalTo: langBtn.trailingAnchor, constant: 5),
       spaceBtn.trailingAnchor.constraint(equalTo: dotBtn.leadingAnchor, constant: -5),
       spaceBtn.topAnchor.constraint(equalTo: container.topAnchor),
-      spaceBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+      spaceBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
     return container
   }
@@ -317,14 +412,14 @@ extension KeyboardViewController {
     dimPath.append(UIBezierPath(roundedRect: holeRect, cornerRadius: radius))
     dim.path = dimPath.cgPath
     dim.fillRule = .evenOdd
-    dim.fillColor = UIColor(white: 0.0, alpha: isDarkMode ? 0.45 : 0.22).cgColor
+    dim.fillColor = themePalette.dragOverlay.cgColor
     overlay.layer.addSublayer(dim)
 
     // 스페이스바 강조 링 (드래그 중인 컨트롤을 또렷이)
     let ring = CAShapeLayer()
     ring.path = UIBezierPath(roundedRect: holeRect, cornerRadius: radius).cgPath
     ring.fillColor = UIColor.clear.cgColor
-    ring.strokeColor = (isDarkMode ? UIColor(white: 1.0, alpha: 0.55) : UIColor(white: 0.0, alpha: 0.28)).cgColor
+    ring.strokeColor = themePalette.dragRing.cgColor
     ring.lineWidth = 1.5
     overlay.layer.addSublayer(ring)
 
@@ -345,41 +440,52 @@ extension KeyboardViewController {
 
     guard let overlay = spaceDragOverlay else { return }
     spaceDragOverlay = nil
-    UIView.animate(withDuration: 0.15, animations: {
-      overlay.alpha = 0
-    }, completion: { _ in
-      overlay.removeFromSuperview()
-    })
+    // 페이드아웃 중인 0.15초 동안 다음 키 입력을 가로채지 않도록 즉시 비활성화한다.
+    overlay.isUserInteractionEnabled = false
+    UIView.animate(
+      withDuration: 0.15,
+      animations: {
+        overlay.alpha = 0
+      },
+      completion: { _ in
+        overlay.removeFromSuperview()
+      })
   }
 
   // MARK: - 버튼 팩토리
 
-  func makeGlassButton(title: String, id: String, isSpecial: Bool, tag: Int = 0, fontSize: CGFloat? = nil) -> KeyButton {
+  func makeGlassButton(
+    title: String, id: String, isSpecial: Bool, tag: Int = 0, fontSize: CGFloat? = nil
+  ) -> KeyButton {
     let btn = KeyButton(type: .custom)
+    btn.applyGlassPalette(themePalette)
     btn.tag = tag
     btn.keyValue = id
     btn.setTitle(title, for: .normal)
-    btn.titleLabel?.font = UIFont.systemFont(ofSize: fontSize ?? layoutMetrics.keyFontSize, weight: isSpecial ? .medium : .regular)
+    btn.titleLabel?.font = UIFont.systemFont(
+      ofSize: fontSize ?? layoutMetrics.keyFontSize, weight: isSpecial ? .medium : .regular)
     btn.setTitleColor(isSpecial ? specialTextColor : keyTextColor, for: .normal)
     btn.backgroundColor = isSpecial ? specialGlassColor : keyGlassColor
     btn.normalBackgroundColor = btn.backgroundColor
 
-    btn.layer.cornerRadius = layoutMetrics.cornerRadius;
+    btn.layer.cornerRadius = layoutMetrics.cornerRadius
     // 단색 보더 대신 KeyButton의 림 라이트로 가장자리를 표현 (글래스 느낌)
-    btn.layer.shadowColor = UIColor.black.cgColor;
-    btn.layer.shadowOffset = CGSize(width: 0, height: 3);
-    btn.layer.shadowOpacity = isDarkMode ? 0.30 : 0.12;
-    btn.layer.shadowRadius = isDarkMode ? 6 : 3;
-    btn.isExclusiveTouch = false;
-    btn.touchDelegate = self;
-    
-    // 버튼 사이의 공백을 터치 영역으로 포함 (가로 3pt, 세로 5pt 간격보다 크게 설정하여 오버랩 생성)
-    btn.touchAreaInsets = UIEdgeInsets(top: -3.0, left: -2.0, bottom: -3.0, right: -2.0);
+    btn.layer.shadowColor = UIColor.black.cgColor
+    btn.layer.shadowOffset = CGSize(width: 0, height: 3)
+    btn.layer.shadowOpacity = 0.30
+    btn.layer.shadowRadius = 6
+    btn.isExclusiveTouch = false
+    btn.accessibilityTraits.insert(.keyboardKey)
+    btn.touchDelegate = self
 
-    // 스페이스바는 커서 이동용 롱프레스를 따로 쓰므로 변체 팝업 롱프레스 제외
-    if !isSpecial && id != " " {
+    // 숫자·기호처럼 변체가 없는 키에는 롱프레스 인식기를 만들지 않는다. 모든 일반 키에
+    // 인식기를 붙이면 화면 가장자리 키에서도 불필요한 제스처 중재 비용이 발생한다.
+    if supportsVariantLongPress(keyValue: id) {
       let lp = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
-      lp.minimumPressDuration = 0.4
+      lp.minimumPressDuration = KeyboardConstants.Interaction.variantLongPressDuration
+      // 변체 팝업 인식이 일반 문자 터치를 취소하면 빠른 입력 중 키업 상태가 꼬일 수 있다.
+      lp.cancelsTouchesInView = false
+      lp.delaysTouchesBegan = false
       btn.addGestureRecognizer(lp)
     }
 
@@ -387,113 +493,103 @@ extension KeyboardViewController {
     return btn
   }
 
+  private func supportsVariantLongPress(keyValue: String) -> Bool {
+    guard keyValue.count == 1, let character = keyValue.first else { return false }
+    // 물리 QWERTY 문자 키는 한글에서는 겹자모, 영문에서는 대소문자 변체가 될 수 있다.
+    return KeyboardConstants.hangulMap[character] != nil
+  }
+
   func makeDummyButton() -> KeyButton {
-    let btn = makeGlassButton(title: "", id: "dummy", isSpecial: true)
-    btn.isUserInteractionEnabled = false // 터치 방지
-    btn.alpha = 0.2 // 옵시디언 테마에 맞춰 더 투명하게
-    btn.layer.cornerRadius = layoutMetrics.cornerRadius / 2
+    let btn = makeGlassButton(
+      title: "", id: KeyboardConstants.KeyID.dummy, isSpecial: true)
+    btn.isUserInteractionEnabled = false  // 터치 방지
+    btn.alpha = 0
     return btn
   }
 
   // MARK: - 외관 업데이트
-  
+
   func rebuildKeyboard() {
-    CATransaction.begin();
-    CATransaction.setDisableActions(true);
-    
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+
     if isCustom != wasCustom || isSymbol != wasSymbol {
-      updatePanelVisibility();
-      wasCustom = isCustom;
-      wasSymbol = isSymbol;
+      updatePanelVisibility()
+      wasCustom = isCustom
+      wasSymbol = isSymbol
     }
-    
+
     // 외관 및 레이블은 패널 전환 여부와 무관하게 항상 업데이트
-    updateKeyLabels();
-    updateAppearance();
-    
-    CATransaction.commit();
+    updateKeyLabels()
+    updateAppearance()
+
+    CATransaction.commit()
   }
 
   func updateAppearance() {
-    CATransaction.begin();
-    CATransaction.setDisableActions(true);
-    
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+
     for btn in allKeyButtons {
-      let id = btn.keyValue;
-      let isSpecial = (id == "shift" || id == "backspace" || id == "symbol" || id == "lang" || id == "enter" || id == "custom" || id == "dismiss" || id.contains("cursor"));
-      
-      if id == "shift" {
-        let isActive = isShifted || isShiftLocked;
-        let targetColor = isActive ? activeGlassColor : specialGlassColor;
-        let targetTextC = isActive ? activeTextColor : specialTextColor;
-        
+      let id = btn.keyValue
+      let isSpecial = KeyboardConstants.KeyID.specialKeys.contains(id)
+        || KeyboardConstants.KeyID.cursorKeys.contains(id)
+
+      if id == KeyboardConstants.KeyID.shift {
+        let isActive = isShifted || isShiftLocked
+        let targetColor = isActive ? activeGlassColor : specialGlassColor
+        let targetTextC = isActive ? activeTextColor : specialTextColor
+
         if btn.backgroundColor != targetColor {
-          btn.backgroundColor = targetColor;
-          btn.normalBackgroundColor = btn.backgroundColor;
+          btn.backgroundColor = targetColor
+          btn.normalBackgroundColor = btn.backgroundColor
         }
-        
+
         if btn.titleColor(for: .normal) != targetTextC {
-          btn.setTitleColor(targetTextC, for: .normal);
-          btn.tintColor = targetTextC;
+          btn.setTitleColor(targetTextC, for: .normal)
+          btn.tintColor = targetTextC
         }
-        
-        let targetTitle = isSymbol ? (isShifted ? "2/2" : "1/2") : (isShiftLocked ? "⇪" : "⇧");
+
+        let targetTitle = isSymbol ? (isShifted ? "2/2" : "1/2") : (isShiftLocked ? "⇪" : "⇧")
         if btn.title(for: .normal) != targetTitle {
-          btn.setTitle(targetTitle, for: .normal);
-          btn.titleLabel?.font = UIFont.systemFont(ofSize: isSymbol ? 16 : layoutMetrics.keyFontSize, weight: .medium);
+          btn.setTitle(targetTitle, for: .normal)
+          btn.titleLabel?.font = UIFont.systemFont(
+            ofSize: isSymbol ? 16 : layoutMetrics.keyFontSize, weight: .medium)
         }
       }
-      
-      if id != "shift" {
-        let targetColor = isSpecial ? specialGlassColor : keyGlassColor;
+
+      if id != KeyboardConstants.KeyID.shift {
+        let targetColor = isSpecial ? specialGlassColor : keyGlassColor
         if btn.backgroundColor != targetColor {
-          btn.backgroundColor = targetColor;
-          btn.normalBackgroundColor = btn.backgroundColor;
+          btn.backgroundColor = targetColor
+          btn.normalBackgroundColor = btn.backgroundColor
         }
-        
-        let targetTextColor = isSpecial ? specialTextColor : keyTextColor;
+
+        let targetTextColor = isSpecial ? specialTextColor : keyTextColor
         if btn.titleColor(for: .normal) != targetTextColor {
-          btn.setTitleColor(targetTextColor, for: .normal);
-          btn.tintColor = targetTextColor;
+          btn.setTitleColor(targetTextColor, for: .normal)
+          btn.tintColor = targetTextColor
         }
       }
-      
-      btn.layer.shadowOpacity = Float(isDarkMode ? 0.30 : 0.12);
-      btn.layer.shadowRadius = isDarkMode ? 6 : 3;
+
+      btn.layer.shadowOpacity = 0.30
+      btn.layer.shadowRadius = 6
 
       // 글래스 레이어(바디 광택 + 림 라이트) 업데이트 (중앙 집중식 관리)
-      btn.updateLayerAppearance();
+      btn.applyGlassPalette(themePalette)
     }
-    
-    CATransaction.commit();
+
+    CATransaction.commit()
   }
 
   // MARK: - 개별 행 생성
-  
+
   func makeNumberRow() -> UIView {
-    let row = makeEqualRow(keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], rowOffset: 300);
-    if let stack = row as? UIStackView {
-      let buttons = stack.arrangedSubviews.compactMap { $0 as? KeyButton };
-      for (idx, btn) in buttons.enumerated() {
-        // 숫자 행은 상단 여백을 위해 top을 더 크게 확장
-        btn.touchAreaInsets.top = -10.0;
-        if idx == 0 { btn.touchAreaInsets.left = -10.0; }
-        if idx == buttons.count - 1 { btn.touchAreaInsets.right = -10.0; }
-      }
-    }
-    return row;
+    makeEqualRow(keys: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"], rowOffset: 300)
   }
 
   func makeLetterRow1() -> UIView {
-    let row = makeLetterRowStack(["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"], rowOffset: 400);
-    if let stack = row.subviews.first as? UIStackView {
-      let buttons = stack.arrangedSubviews.compactMap { $0 as? KeyButton };
-      for (idx, btn) in buttons.enumerated() {
-        if idx == 0 { btn.touchAreaInsets.left = -10.0; }
-        if idx == buttons.count - 1 { btn.touchAreaInsets.right = -10.0; }
-      }
-    }
-    return row;
+    makeLetterRowStack(["q", "w", "e", "r", "t", "y", "u", "i", "o", "p"], rowOffset: 400)
   }
 
   func makeLetterRow2() -> UIView {
@@ -509,69 +605,64 @@ extension KeyboardViewController {
 
   func makeLetterRowStack(_ chars: [String], rowOffset: Int) -> UIView {
     let container = ExpandedHitView()
-    container.clipsToBounds = false;
+    container.clipsToBounds = false
     let stack = ExpandedHitStackView()
     stack.axis = .horizontal
     stack.distribution = .fill
-    stack.spacing = 3;
+    stack.spacing = 3
     stack.translatesAutoresizingMaskIntoConstraints = false
-    stack.clipsToBounds = false;
-    
+    stack.clipsToBounds = false
+
     // 9개 버튼일 경우 양옆에 더미 버튼 추가
     if chars.count == 9 {
       let leftDummy = makeDummyButton()
       let rightDummy = makeDummyButton()
-      
+
       stack.addArrangedSubview(leftDummy)
-      
+
       var firstKey: UIView?
       for (idx, ch) in chars.enumerated() {
-        let label = isSymbol ? ch : (ch.count == 1 ? letterLabel(for: Character(ch)) : ch);
-        let key = makeGlassButton(title: label, id: ch, isSpecial: false, tag: rowOffset + idx);
-        stack.addArrangedSubview(key);
-        
+        let label = isSymbol ? ch : (ch.count == 1 ? letterLabel(for: Character(ch)) : ch)
+        let key = makeGlassButton(title: label, id: ch, isSpecial: false, tag: rowOffset + idx)
+        stack.addArrangedSubview(key)
+        stack.registerKey(key)
+        container.registerKey(key)
+
         if let first = firstKey {
-          key.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true;
+          key.widthAnchor.constraint(equalTo: first.widthAnchor).isActive = true
         } else {
-          firstKey = key;
+          firstKey = key
         }
       }
-      
-      stack.addArrangedSubview(rightDummy);
-      
-      let keyButtons = stack.arrangedSubviews.compactMap { $0 as? KeyButton };
-      if let firstKeyBtn = keyButtons.first(where: { $0.keyValue != "dummy" }) {
-        // 첫 번째 키(예: 'a')의 왼쪽 터미 영역까지 확장
-        firstKeyBtn.touchAreaInsets.left = -40;
-      }
-      if let lastKeyBtn = keyButtons.last(where: { $0.keyValue != "dummy" }) {
-        // 마지막 키(예: 'l')의 오른쪽 터미 영역까지 확장
-        lastKeyBtn.touchAreaInsets.right = -40;
-      }
+
+      stack.addArrangedSubview(rightDummy)
 
       if let key = firstKey {
         // 양옆 공백(더미)을 키 폭의 0.4배로 — 0.3 대비 살짝 넓혀 9키 행 버튼을 조금 좁힌다
-        leftDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.4).isActive = true;
-        rightDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.4).isActive = true;
+        leftDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.4).isActive = true
+        rightDummy.widthAnchor.constraint(equalTo: key.widthAnchor, multiplier: 0.4).isActive = true
       }
     } else {
       // 10개 버튼일 경우 (기존 fillEqually와 동일하게 동작)
       stack.distribution = .fillEqually
       for (idx, ch) in chars.enumerated() {
         let label = isSymbol ? ch : (ch.count == 1 ? letterLabel(for: Character(ch)) : ch)
-        stack.addArrangedSubview(makeGlassButton(title: label, id: ch, isSpecial: false, tag: rowOffset + idx))
+        let key = makeGlassButton(title: label, id: ch, isSpecial: false, tag: rowOffset + idx)
+        stack.addArrangedSubview(key)
+        stack.registerKey(key)
+        container.registerKey(key)
       }
     }
-    
+
     container.addSubview(stack)
-    
+
     NSLayoutConstraint.activate([
       stack.topAnchor.constraint(equalTo: container.topAnchor),
       stack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
       stack.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-      stack.trailingAnchor.constraint(equalTo: container.trailingAnchor)
+      stack.trailingAnchor.constraint(equalTo: container.trailingAnchor),
     ])
-    
+
     return container
   }
 
@@ -579,18 +670,20 @@ extension KeyboardViewController {
     let stack = ExpandedHitStackView()
     stack.axis = .horizontal
     stack.distribution = .fillEqually
-    stack.spacing = 3;
-    stack.clipsToBounds = false;
+    stack.spacing = 3
+    stack.clipsToBounds = false
     for (idx, key) in keys.enumerated() {
-      stack.addArrangedSubview(makeGlassButton(title: key, id: key, isSpecial: false, tag: rowOffset + idx))
+      let button = makeGlassButton(title: key, id: key, isSpecial: false, tag: rowOffset + idx)
+      stack.addArrangedSubview(button)
+      stack.registerKey(button)
     }
     return stack
   }
 
   func makeShiftRow(middleKeys: [String], keyValues: [String], rowOffset: Int) -> UIView {
     let container = ExpandedHitView()
-    container.clipsToBounds = false // 가장자리 애니메이션 잘림 방지
-    
+    container.clipsToBounds = false  // 가장자리 애니메이션 잘림 방지
+
     // 이 시점에 이미 isSymbol 상태가 반영되어 있으므로 여기서도 체크 필요
     let shiftTitle: String
     let fontSize: CGFloat
@@ -601,52 +694,64 @@ extension KeyboardViewController {
       shiftTitle = isShiftLocked ? "⇪" : "⇧"
       fontSize = layoutMetrics.keyFontSize
     }
-    
-    let shiftBtn = makeGlassButton(title: shiftTitle, id: "shift", isSpecial: true, tag: 699, fontSize: fontSize)
+
+    let shiftBtn = makeGlassButton(
+      title: shiftTitle, id: KeyboardConstants.KeyID.shift, isSpecial: true, tag: 699,
+      fontSize: fontSize)
+    shiftBtn.accessibilityLabel = "시프트"
     shiftBtn.addTarget(self, action: #selector(shiftTapped), for: .touchUpInside)
-    
+
     // 시프트 롱 프레스 추가 (0.5초)
-    let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleShiftLongPress(_:)))
-    longPress.minimumPressDuration = 0.5
+    let longPress = UILongPressGestureRecognizer(
+      target: self, action: #selector(handleShiftLongPress(_:)))
+    longPress.minimumPressDuration = KeyboardConstants.Interaction.shiftLongPressDuration
     shiftBtn.addGestureRecognizer(longPress)
-    
-    shiftButton = shiftBtn;
 
-    let bsBtn = makeGlassButton(title: "⌫", id: "backspace", isSpecial: true, tag: 698)
+    shiftButton = shiftBtn
+
+    let bsBtn = makeGlassButton(
+      title: "⌫", id: KeyboardConstants.KeyID.backspace, isSpecial: true, tag: 698)
+    bsBtn.accessibilityLabel = "삭제"
     bsBtn.addTarget(self, action: #selector(backspaceTouchDown(_:)), for: .touchDown)
-    bsBtn.addTarget(self, action: #selector(backspaceTouchUp(_:)), for: [.touchUpInside, .touchUpOutside, .touchCancel])
+    bsBtn.addTarget(
+      self, action: #selector(backspaceTouchUp(_:)),
+      for: [.touchUpInside, .touchUpOutside, .touchCancel])
 
-    let letterStack = UIStackView();
-    letterStack.axis = .horizontal; letterStack.distribution = .fillEqually; letterStack.spacing = 3;
+    let letterStack = UIStackView()
+    letterStack.axis = .horizontal
+    letterStack.distribution = .fillEqually
+    letterStack.spacing = 3
     for (idx, (label, value)) in zip(middleKeys, keyValues).enumerated() {
-      letterStack.addArrangedSubview(makeGlassButton(title: label, id: value, isSpecial: false, tag: rowOffset + idx))
+      letterStack.addArrangedSubview(
+        makeGlassButton(title: label, id: value, isSpecial: false, tag: rowOffset + idx))
     }
 
-    [shiftBtn, letterStack, bsBtn].forEach { $0.translatesAutoresizingMaskIntoConstraints = false; container.addSubview($0) }
-    
-    // 시프트 행의 하단 여백 및 좌우 여백 확장
-    shiftBtn.touchAreaInsets.bottom = -10.0;
-    shiftBtn.touchAreaInsets.left = -8.0;
-    bsBtn.touchAreaInsets.bottom = -10.0;
-    bsBtn.touchAreaInsets.right = -8.0;
-    for btn in letterStack.arrangedSubviews.compactMap({ $0 as? KeyButton }) {
-      btn.touchAreaInsets.bottom = -10.0;
+    for view in [shiftBtn, letterStack, bsBtn] {
+      view.translatesAutoresizingMaskIntoConstraints = false
+      container.addSubview(view)
     }
-    
+
     let letterKeys = letterStack.arrangedSubviews.compactMap { $0 as? KeyButton }
+    for key in [shiftBtn] + letterKeys + [bsBtn] {
+      container.registerKey(key)
+    }
     NSLayoutConstraint.activate([
-      shiftBtn.leadingAnchor.constraint(equalTo: container.leadingAnchor), shiftBtn.topAnchor.constraint(equalTo: container.topAnchor),
+      shiftBtn.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      shiftBtn.topAnchor.constraint(equalTo: container.topAnchor),
       shiftBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-      letterStack.leadingAnchor.constraint(equalTo: shiftBtn.trailingAnchor, constant: 3), letterStack.trailingAnchor.constraint(equalTo: bsBtn.leadingAnchor, constant: -3),
-      letterStack.topAnchor.constraint(equalTo: container.topAnchor), letterStack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-      bsBtn.trailingAnchor.constraint(equalTo: container.trailingAnchor), bsBtn.topAnchor.constraint(equalTo: container.topAnchor),
-      bsBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+      letterStack.leadingAnchor.constraint(equalTo: shiftBtn.trailingAnchor, constant: 3),
+      letterStack.trailingAnchor.constraint(equalTo: bsBtn.leadingAnchor, constant: -3),
+      letterStack.topAnchor.constraint(equalTo: container.topAnchor),
+      letterStack.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+      bsBtn.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      bsBtn.topAnchor.constraint(equalTo: container.topAnchor),
+      bsBtn.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
     // ⇧/⌫ 폭을 글자 키의 1.5배로 고정 → 표준 10열 그리드에 맞아 글자 키 폭이 다른 행과 거의 동일해진다.
     if let letterKey = letterKeys.first {
       NSLayoutConstraint.activate([
         shiftBtn.widthAnchor.constraint(equalTo: letterKey.widthAnchor, multiplier: 1.5),
-        bsBtn.widthAnchor.constraint(equalTo: letterKey.widthAnchor, multiplier: 1.5)
+        bsBtn.widthAnchor.constraint(equalTo: letterKey.widthAnchor, multiplier: 1.5),
       ])
     }
     return container
@@ -664,44 +769,64 @@ extension KeyboardViewController {
       case 400...409:
         let idx = btn.tag - 400
         if isSymbol {
-          let keys = isShifted ? KeyboardConstants.SYM_ROW1_SHIFTED : KeyboardConstants.SYM_ROW1_NORMAL;
-          let target = keys[idx];
-          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = target; }
+          let keys =
+            isShifted ? KeyboardConstants.shiftedSymbolRow1 : KeyboardConstants.symbolRow1
+          let target = keys[idx]
+          if btn.title(for: .normal) != target {
+            btn.setTitle(target, for: .normal)
+            btn.keyValue = target
+          }
         } else {
-          let ch = row1Normal[idx];
-          let target = letterLabel(for: ch);
-          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = String(ch); }
+          let ch = row1Normal[idx]
+          let target = letterLabel(for: ch)
+          if btn.title(for: .normal) != target {
+            btn.setTitle(target, for: .normal)
+            btn.keyValue = String(ch)
+          }
         }
       case 500...509:
-        let idx = btn.tag - 500;
+        let idx = btn.tag - 500
         if isSymbol {
-          let keys = isShifted ? KeyboardConstants.SYM_ROW2_SHIFTED : KeyboardConstants.SYM_ROW2_NORMAL;
-          let target = keys[idx];
-          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = target; }
+          let keys =
+            isShifted ? KeyboardConstants.shiftedSymbolRow2 : KeyboardConstants.symbolRow2
+          let target = keys[idx]
+          if btn.title(for: .normal) != target {
+            btn.setTitle(target, for: .normal)
+            btn.keyValue = target
+          }
         } else {
-          let ch = row2Normal[idx];
-          let target = letterLabel(for: ch);
-          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = String(ch); }
+          let ch = row2Normal[idx]
+          let target = letterLabel(for: ch)
+          if btn.title(for: .normal) != target {
+            btn.setTitle(target, for: .normal)
+            btn.keyValue = String(ch)
+          }
         }
       case 600...606:
-        let idx = btn.tag - 600;
+        let idx = btn.tag - 600
         if isSymbol {
-          let keys = isShifted ? KeyboardConstants.SYM_ROW3_SHIFTED : KeyboardConstants.SYM_ROW3_NORMAL;
-          let target = keys[idx];
-          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = target; }
+          let keys =
+            isShifted ? KeyboardConstants.shiftedSymbolRow3 : KeyboardConstants.symbolRow3
+          let target = keys[idx]
+          if btn.title(for: .normal) != target {
+            btn.setTitle(target, for: .normal)
+            btn.keyValue = target
+          }
         } else {
-          let ch = row3Normal[idx];
-          let target = letterLabel(for: ch);
-          if btn.title(for: .normal) != target { btn.setTitle(target, for: .normal); btn.keyValue = String(ch); }
+          let ch = row3Normal[idx]
+          let target = letterLabel(for: ch)
+          if btn.title(for: .normal) != target {
+            btn.setTitle(target, for: .normal)
+            btn.keyValue = String(ch)
+          }
         }
       case 699:
-        let targetTitle = isShiftLocked ? "⇪" : "⇧";
+        let targetTitle = isShiftLocked ? "⇪" : "⇧"
         if btn.title(for: .normal) != targetTitle {
-          btn.setTitle(targetTitle, for: .normal);
+          btn.setTitle(targetTitle, for: .normal)
         }
       default: break
       }
     }
   }
 }
-
