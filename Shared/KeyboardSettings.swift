@@ -66,6 +66,33 @@ enum KeyboardHeightPreset: String, Codable, CaseIterable, Identifiable, Sendable
   }
 }
 
+enum KeyboardHapticStrength: String, Codable, CaseIterable, Identifiable, Sendable {
+  case light
+  case standard
+  case strong
+
+  var id: String { rawValue }
+
+  var title: String {
+    switch self {
+    case .light: "약하게"
+    case .standard: "기본"
+    case .strong: "강하게"
+    }
+  }
+
+  /// 기존 기본 햅틱을 기준으로 피드백 종류별 상대 세기만 조절한다.
+  /// 0...1 범위는 `UIImpactFeedbackGenerator`의 유효 범위다.
+  func intensity(for baseIntensity: CGFloat) -> CGFloat {
+    let multiplier: CGFloat = switch self {
+    case .light: 0.70
+    case .standard: 1.0
+    case .strong: 1.35
+    }
+    return min(max(baseIntensity * multiplier, 0), 1)
+  }
+}
+
 struct KeyboardRGBA: Codable, Equatable, Sendable {
   static let defaultCustomAccent = KeyboardRGBA(red: 0.38, green: 0.66, blue: 0.96)
 
@@ -118,7 +145,7 @@ struct KeyboardRGBA: Codable, Equatable, Sendable {
 }
 
 struct KeyboardSettings: Codable, Equatable, Sendable {
-  static let currentSchemaVersion = 1
+  static let currentSchemaVersion = 2
   static let `default` = KeyboardSettings()
 
   var schemaVersion: Int
@@ -126,19 +153,22 @@ struct KeyboardSettings: Codable, Equatable, Sendable {
   var customAccent: KeyboardRGBA
   var height: KeyboardHeightPreset
   var hapticsEnabled: Bool
+  var hapticStrength: KeyboardHapticStrength
 
   init(
     schemaVersion: Int = Self.currentSchemaVersion,
     theme: KeyboardThemePreset = .obsidian,
     customAccent: KeyboardRGBA = .defaultCustomAccent,
     height: KeyboardHeightPreset = .standard,
-    hapticsEnabled: Bool = false
+    hapticsEnabled: Bool = false,
+    hapticStrength: KeyboardHapticStrength = .standard
   ) {
     self.schemaVersion = schemaVersion
     self.theme = theme
     self.customAccent = customAccent
     self.height = height
     self.hapticsEnabled = hapticsEnabled
+    self.hapticStrength = hapticStrength
   }
 
   init(from decoder: Decoder) throws {
@@ -152,31 +182,36 @@ struct KeyboardSettings: Codable, Equatable, Sendable {
     let decodedHeight =
       (try? container.decode(KeyboardHeightPreset.self, forKey: .height)) ?? .standard
     let decodedHaptics = (try? container.decode(Bool.self, forKey: .hapticsEnabled)) ?? false
+    let decodedHapticStrength =
+      (try? container.decode(KeyboardHapticStrength.self, forKey: .hapticStrength)) ?? .standard
 
-    // v0(버전 필드 없음)과 v1은 현재 필드별 안전 기본값으로 마이그레이션한다.
+    // v0(버전 필드 없음)·v1은 새 햅틱 세기를 기본값으로 채워 마이그레이션한다.
     // 미래 버전도 아는 필드는 유지하고 모르는 enum 값만 해당 필드 기본값으로 복구한다.
     switch sourceVersion {
-    case ...0:  // 버전 필드가 없던 초기 데이터
+    case ...1:  // 버전 필드가 없던 초기 데이터와 v1
       self.init(
         schemaVersion: Self.currentSchemaVersion,
         theme: decodedTheme,
         customAccent: decodedAccent,
         height: decodedHeight,
-        hapticsEnabled: decodedHaptics)
-    case Self.currentSchemaVersion:  // 현재 v1
+        hapticsEnabled: decodedHaptics,
+        hapticStrength: decodedHapticStrength)
+    case Self.currentSchemaVersion:  // 현재 v2
       self.init(
         schemaVersion: Self.currentSchemaVersion,
         theme: decodedTheme,
         customAccent: decodedAccent,
         height: decodedHeight,
-        hapticsEnabled: decodedHaptics)
+        hapticsEnabled: decodedHaptics,
+        hapticStrength: decodedHapticStrength)
     default:  // 미래 버전: 현재 클라이언트가 아는 필드만 보존
       self.init(
         schemaVersion: Self.currentSchemaVersion,
         theme: decodedTheme,
         customAccent: decodedAccent,
         height: decodedHeight,
-        hapticsEnabled: decodedHaptics)
+        hapticsEnabled: decodedHaptics,
+        hapticStrength: decodedHapticStrength)
     }
   }
 
@@ -186,7 +221,7 @@ struct KeyboardSettings: Codable, Equatable, Sendable {
 }
 
 enum KeyboardPreferencesStore {
-  static let appGroupIdentifier = "group.nijoow.custom.keyboard"
+  static let appGroupIdentifier = "group.nijoow.custom.keyboard.v2"
   private static let settingsKey = "keyboard.settings.v1"
   private static let extensionStatusKey = "keyboard.extension.status.v1"
 

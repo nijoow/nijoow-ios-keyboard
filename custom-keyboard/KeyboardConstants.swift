@@ -36,6 +36,9 @@ struct KeyboardConstants {
     static let variantLongPressDuration: TimeInterval = 0.4
     static let spaceLongPressDuration: TimeInterval = 0.3
     static let spaceCursorStep: CGFloat = 12
+    /// 지연된 한 번의 pan 이벤트가 문서 프록시 IPC를 무제한 몰아내지 않게 하는 상한.
+    /// 처리하지 못한 이동량은 누적값에 남겨 다음 이벤트에서 이어서 처리한다.
+    static let maxCursorStepsPerPanEvent = 8
     static let repeatStartDelay: TimeInterval = 0.4
     static let cursorRepeatInterval: TimeInterval = 0.1
     static let backspaceRepeatStartDelay: TimeInterval = 0.25
@@ -44,7 +47,10 @@ struct KeyboardConstants {
     static let fastRepeatThreshold = 10
     static let fastestRepeatThreshold = 50
     static let horizontalHitSlop: CGFloat = 8
-    static let keyTrackingHitSlop: CGFloat = 12
+    /// 행 컨테이너가 끝키로 넘긴 터치를 손가락을 뗄 때까지 유지하는 범위.
+    /// 새 터치 대상 선택은 `KeyButton.hitTest`가 실제 bounds로 제한하므로 이 값을 넓혀도
+    /// 이웃 키의 새 터치를 가로채지 않는다. 9키 행의 양옆 더미 폭과 화면 끝 여백을 포함한다.
+    static let keyTrackingHitSlop: CGFloat = 24
     /// 빠른 탭도 눌림 상태가 최소 한 프레임 이상 보이도록 유지하는 시간.
     /// 입력과 햅틱은 즉시 처리하며 시각 효과 해제에만 적용한다.
     static let minimumPressVisualDuration: TimeInterval = 0.06

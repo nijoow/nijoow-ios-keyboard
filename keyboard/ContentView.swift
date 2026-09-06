@@ -117,16 +117,30 @@ struct ContentView: View {
 
       Divider().overlay(.white.opacity(0.08))
 
-      Toggle(isOn: hapticsBinding) {
-        VStack(alignment: .leading, spacing: 4) {
-          Text("키 입력 햅틱")
-            .font(.system(size: 16, weight: .semibold, design: .rounded))
-          Text("일반 입력과 커서 이동·연속 삭제에 가벼운 피드백을 줘요.")
-            .font(.system(size: 13))
-            .foregroundStyle(.white.opacity(0.48))
+      VStack(alignment: .leading, spacing: 14) {
+        Toggle(isOn: hapticsBinding) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("키 입력 햅틱")
+              .font(.system(size: 16, weight: .semibold, design: .rounded))
+            Text("일반 입력과 커서 이동·연속 삭제에 가벼운 피드백을 줘요.")
+              .font(.system(size: 13))
+              .foregroundStyle(.white.opacity(0.48))
+          }
         }
+        .tint(Color(uiColor: palette.accent))
+
+        VStack(alignment: .leading, spacing: 10) {
+          settingLabel("햅틱 세기")
+          Picker("햅틱 세기", selection: hapticStrengthBinding) {
+            ForEach(KeyboardHapticStrength.allCases) { strength in
+              Text(strength.title).tag(strength)
+            }
+          }
+          .pickerStyle(.segmented)
+        }
+        .disabled(!settings.hapticsEnabled)
+        .opacity(settings.hapticsEnabled ? 1 : 0.42)
       }
-      .tint(Color(uiColor: palette.accent))
 
       if saveFailed {
         Label(
@@ -254,10 +268,18 @@ struct ContentView: View {
       set: { enabled in
         updateSettings { $0.hapticsEnabled = enabled }
         if enabled {
-          let generator = UIImpactFeedbackGenerator(style: .soft)
-          generator.prepare()
-          generator.impactOccurred(intensity: 0.52)
+          HapticPreview.shared.play(strength: settings.hapticStrength)
         }
+      }
+    )
+  }
+
+  private var hapticStrengthBinding: Binding<KeyboardHapticStrength> {
+    Binding(
+      get: { settings.hapticStrength },
+      set: { strength in
+        updateSettings { $0.hapticStrength = strength }
+        HapticPreview.shared.play(strength: strength)
       }
     )
   }
@@ -308,6 +330,22 @@ struct ContentView: View {
             lineWidth: 1
           )
       )
+  }
+}
+
+@MainActor
+private final class HapticPreview {
+  static let shared = HapticPreview()
+
+  private let generator = UIImpactFeedbackGenerator(style: .soft)
+
+  private init() {
+    generator.prepare()
+  }
+
+  func play(strength: KeyboardHapticStrength) {
+    generator.impactOccurred(intensity: strength.intensity(for: 0.52))
+    generator.prepare()
   }
 }
 

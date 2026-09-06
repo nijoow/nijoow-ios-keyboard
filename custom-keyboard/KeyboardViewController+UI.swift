@@ -6,19 +6,7 @@ extension KeyboardViewController {
 
   func buildKeyboard() {
     resetTransientInputState()
-    // 이모지 변형 팝업은 키보드 컨테이너의 형제 뷰이므로 일반 subview 제거 전에 정리한다.
-    customKeyboardView?.removeFromSuperview()
-    for subview in view.subviews {
-      subview.removeFromSuperview()
-    }
-    utilityRow = nil
-    bottomRow = nil
-    mainContentStack = nil
-    customKeyboardView = nil
-    allKeyButtons.removeAll()
-    shiftButton = nil
-    spaceButton = nil
-    nextKeyboardButton = nil
+    clearKeyboardViewHierarchy()
 
     // 1. 바톰 행 (하단 고정)
     let botRow = makeBottomRow()
@@ -61,6 +49,39 @@ extension KeyboardViewController {
     // 5. 시작 가시성 적용
     updatePanelVisibility()
     lastRenderedPanel = interactionState.panel
+  }
+
+  /// 화면에서 내려간 키보드의 Core Animation 계층과 제약을 해제한다.
+  /// 시스템이 확장 프로세스를 재사용해도 다음 등장 때 `buildKeyboard()`가 복원한다.
+  func releaseKeyboardViewHierarchy() {
+    resetTransientInputState()
+    clearKeyboardViewHierarchy()
+    needsLayoutRebuildOnNextAppearance = true
+  }
+
+  var hasKeyboardViewHierarchy: Bool {
+    utilityRow != nil && mainContentStack != nil && bottomRow != nil
+  }
+
+  /// 컨트롤러의 루트에는 시스템이 관리할 수 있는 뷰가 섞일 수 있으므로 `view.subviews`
+  /// 전체를 지우지 않고, 이 키보드가 소유한 계층만 명시적으로 정리한다.
+  private func clearKeyboardViewHierarchy() {
+    removeCustomPanel(resetMode: false)
+    utilityRow?.removeFromSuperview()
+    mainContentStack?.removeFromSuperview()
+    bottomRow?.removeFromSuperview()
+    view.subviews.compactMap { $0 as? SpaceDragOverlayView }.forEach {
+      $0.layer.removeAllAnimations()
+      $0.removeFromSuperview()
+    }
+    utilityRow = nil
+    bottomRow = nil
+    mainContentStack = nil
+    customKeyboardView = nil
+    allKeyButtons.removeAll()
+    shiftButton = nil
+    spaceButton = nil
+    nextKeyboardButton = nil
   }
 
   /// 키보드 뷰에 확정 높이 제약을 설치/갱신한다.
@@ -435,7 +456,7 @@ extension KeyboardViewController {
   }
 
   /// 스페이스바 드래그 종료: 강조 상태와 오버레이를 해제한다.
-  func endSpaceDragVisual() {
+  func endSpaceDragVisual(animated: Bool = true) {
     if let space = spaceButton {
       space.dragActive = false
       space.dragActiveColor = nil
@@ -446,6 +467,11 @@ extension KeyboardViewController {
     spaceDragOverlay = nil
     // 페이드아웃 중인 0.15초 동안 다음 키 입력을 가로채지 않도록 즉시 비활성화한다.
     overlay.isUserInteractionEnabled = false
+    guard animated else {
+      overlay.layer.removeAllAnimations()
+      overlay.removeFromSuperview()
+      return
+    }
     UIView.animate(
       withDuration: 0.15,
       animations: {

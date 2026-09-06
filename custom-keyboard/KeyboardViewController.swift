@@ -211,7 +211,9 @@ class KeyboardViewController: UIInputViewController {
   func reloadKeyboardSettings() -> Bool {
     let previousHeight = keyboardSettings.height
     keyboardSettings = KeyboardPreferencesStore.load()
-    KeyboardHaptics.shared.configure(isEnabled: keyboardSettings.hapticsEnabled)
+    KeyboardHaptics.shared.configure(
+      isEnabled: keyboardSettings.hapticsEnabled,
+      strength: keyboardSettings.hapticStrength)
     refreshThemeColors()
     return previousHeight != keyboardSettings.height
   }
@@ -236,6 +238,17 @@ class KeyboardViewController: UIInputViewController {
 
     buildKeyboard()
 
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(extensionHostDidEnterBackground),
+      name: NSNotification.Name.NSExtensionHostDidEnterBackground,
+      object: nil)
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(extensionHostDidBecomeActive),
+      name: NSNotification.Name.NSExtensionHostDidBecomeActive,
+      object: nil)
+
   }
 
   // MARK: - 레이아웃 설정
@@ -253,7 +266,9 @@ class KeyboardViewController: UIInputViewController {
     KeyboardPreferencesStore.recordExtensionActivation(hasFullAccess: hasFullAccess)
     let widthClassChanged = updateLayoutReferenceWidth(view.bounds.width)
     resetKeyboardState()
-    let shouldRebuild = heightChanged || widthClassChanged || needsLayoutRebuildOnNextAppearance
+    let shouldRebuild =
+      heightChanged || widthClassChanged || needsLayoutRebuildOnNextAppearance
+      || !hasKeyboardViewHierarchy
     needsLayoutRebuildOnNextAppearance = false
     UIView.performWithoutAnimation {
       // 새 행 높이로 뷰를 만들기 전에 컨테이너 높이를 먼저 확정한다.
@@ -333,20 +348,70 @@ class KeyboardViewController: UIInputViewController {
     super.viewWillDisappear(animated)
     isKeyboardVisible = false
     os_log("🛑 viewWillDisappear", log: logger, type: .default)
-    // iOS는 키보드를 닫아도 확장 프로세스를 계속 살려둘 수 있다. 다음 호스트 앱이
-    // 메모리 압박을 받기 전에 타이머·무거운 뷰·파싱한 이모지 데이터를 모두 정리한다.
+    // 전환 애니메이션 중에는 뷰 계층을 유지하되 입력 타이머와 Taptic 자원은 즉시 멈춘다.
     resetTransientInputState()
-    removeCustomPanel()
+    KeyboardHaptics.shared.suspend()
+  }
+
+  override func viewDidDisappear(_ animated: Bool) {
+    super.viewDidDisappear(animated)
+    // iOS는 닫힌 키보드 확장 프로세스를 계속 재사용할 수 있다. 보이지 않는 동안
+    // 기본 키의 글래스/그림자 레이어까지 내려 메모리 압박에 의한 종료 가능성을 줄인다.
+    releaseKeyboardViewHierarchy()
     EmojiProvider.shared.unloadData()
+    os_log("⏹ viewDidDisappear resources released", log: logger, type: .default)
   }
 
   override func didReceiveMemoryWarning() {
     super.didReceiveMemoryWarning()
     os_log("⚠️ didReceiveMemoryWarning", log: logger, type: .error)
-    // 메모리 부족 시 이모지 패널 해제 + 이모지 데이터 언로드
+    // 보이는 동안에는 기본 입력 UI를 보존하고 무거운 선택 패널만 내린다.
+    // 이미 내려간 상태라면 전체 키 계층까지 즉시 해제한다.
     resetTransientInputState()
+    KeyboardHaptics.shared.suspend()
+    if isKeyboardVisible {
+      removeCustomPanel()
+    } else {
+      releaseKeyboardViewHierarchy()
+    }
+    EmojiProvider.shared.unloadData()
+  }
+
+  /// 일부 호스트는 앱 전환 시 키보드 VC의 disappear 콜백보다 확장 호스트 알림을 먼저
+  /// 보내거나 VC를 그대로 보존한다. 이 경로에서도 반복 입력과 선택 패널을 정리한다.
+  @objc private func extensionHostDidEnterBackground() {
+    os_log("🌙 extension host did enter background", log: logger, type: .default)
+    KeyboardHaptics.shared.suspend()
     removeCustomPanel()
     EmojiProvider.shared.unloadData()
+    // disappear 콜백이 생략되는 호스트에서도 백그라운드 동안 무거운 키 레이어를
+    // 유지하지 않는다. `isKeyboardVisible`은 그대로 둬 active 콜백의 복구 판단에 쓴다.
+    releaseKeyboardViewHierarchy()
+  }
+
+  /// VC가 사라지지 않은 채 호스트만 다시 활성화되는 경로에서는 해제한 계층을 즉시
+  /// 복원한다. 일반 재등장 경로는 `viewWillAppear`가 같은 역할을 한다.
+  @objc private func extensionHostDidBecomeActive() {
+    guard isKeyboardVisible else { return }
+
+    if !hasKeyboardViewHierarchy {
+      _ = reloadKeyboardSettings()
+      _ = updateLayoutReferenceWidth(view.bounds.width)
+      resetKeyboardState()
+      needsLayoutRebuildOnNextAppearance = false
+
+      UIView.performWithoutAnimation {
+        installKeyboardHeightConstraint()
+        buildKeyboard()
+        refreshThemeColors()
+        updateKeyLabels()
+        updateAppearance()
+        view.layoutIfNeeded()
+      }
+      os_log("☀️ extension host active hierarchy restored", log: logger, type: .default)
+    }
+
+    KeyboardHaptics.shared.prepare()
   }
 
   override func textDidChange(_ textInput: UITextInput?) {
@@ -377,7 +442,7 @@ class KeyboardViewController: UIInputViewController {
   func resetTransientInputState() {
     stopAllTimers()
     hidePopup()
-    endSpaceDragVisual()
+    endSpaceDragVisual(animated: false)
     accumulatedPanX = 0
     isSpaceCursorModeActive = false
     shouldSuppressSpaceTap = false
@@ -419,6 +484,7 @@ class KeyboardViewController: UIInputViewController {
 
   deinit {
     os_log("🔴 KeyboardViewController DEINIT", log: logger, type: .default)
+    NotificationCenter.default.removeObserver(self)
     stopAllTimers()
   }
 }

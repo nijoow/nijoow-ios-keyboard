@@ -11,6 +11,7 @@ final class KeyboardSettingsTests: XCTestCase {
     XCTAssertEqual(settings.theme, .obsidian)
     XCTAssertEqual(settings.height, .standard)
     XCTAssertFalse(settings.hapticsEnabled)
+    XCTAssertEqual(settings.hapticStrength, .standard)
   }
 
   func testSettingsRoundTripPreservesUserChoices() throws {
@@ -18,7 +19,8 @@ final class KeyboardSettingsTests: XCTestCase {
       theme: .custom,
       customAccent: KeyboardRGBA(red: 0.22, green: 0.74, blue: 0.51),
       height: .large,
-      hapticsEnabled: true
+      hapticsEnabled: true,
+      hapticStrength: .strong
     )
 
     let encoded = try JSONEncoder().encode(source)
@@ -35,6 +37,7 @@ final class KeyboardSettingsTests: XCTestCase {
     XCTAssertEqual(decoded.theme, .frost)
     XCTAssertEqual(decoded.height, .standard)
     XCTAssertFalse(decoded.hapticsEnabled)
+    XCTAssertEqual(decoded.hapticStrength, .standard)
     XCTAssertEqual(decoded.schemaVersion, KeyboardSettings.currentSchemaVersion)
   }
 
@@ -56,7 +59,7 @@ final class KeyboardSettingsTests: XCTestCase {
 
   func testUnknownFutureFieldOnlyFallsBackThatField() throws {
     let encoded = Data(
-      #"{"schemaVersion":99,"theme":"future-theme","customAccent":{"red":0.1,"green":0.2,"blue":0.3},"height":"large","hapticsEnabled":true}"#.utf8)
+      #"{"schemaVersion":99,"theme":"future-theme","customAccent":{"red":0.1,"green":0.2,"blue":0.3},"height":"large","hapticsEnabled":true,"hapticStrength":"strong"}"#.utf8)
 
     let decoded = try JSONDecoder().decode(KeyboardSettings.self, from: encoded)
 
@@ -65,6 +68,7 @@ final class KeyboardSettingsTests: XCTestCase {
     XCTAssertEqual(decoded.customAccent, KeyboardRGBA(red: 0.1, green: 0.2, blue: 0.3))
     XCTAssertEqual(decoded.height, .large)
     XCTAssertTrue(decoded.hapticsEnabled)
+    XCTAssertEqual(decoded.hapticStrength, .strong)
   }
 
   func testInvalidFieldTypeDoesNotResetOtherSettings() throws {
@@ -76,6 +80,7 @@ final class KeyboardSettingsTests: XCTestCase {
     XCTAssertEqual(decoded.theme, .rose)
     XCTAssertEqual(decoded.height, .standard)
     XCTAssertTrue(decoded.hapticsEnabled)
+    XCTAssertEqual(decoded.hapticStrength, .standard)
   }
 
   func testExtensionConnectionStatusExpires() {
@@ -93,6 +98,17 @@ final class KeyboardSettingsTests: XCTestCase {
     XCTAssertLessThan(KeyboardHeightPreset.compact.rowScale, KeyboardHeightPreset.standard.rowScale)
     XCTAssertLessThan(KeyboardHeightPreset.standard.rowScale, KeyboardHeightPreset.large.rowScale)
     XCTAssertLessThanOrEqual(KeyboardHeightPreset.large.fontScale, KeyboardHeightPreset.large.rowScale)
+  }
+
+  func testHapticStrengthsRemainOrdered() {
+    let base: CGFloat = 0.52
+
+    XCTAssertLessThan(
+      KeyboardHapticStrength.light.intensity(for: base),
+      KeyboardHapticStrength.standard.intensity(for: base))
+    XCTAssertLessThan(
+      KeyboardHapticStrength.standard.intensity(for: base),
+      KeyboardHapticStrength.strong.intensity(for: base))
   }
 
   func testPresetPalettesProduceDifferentAccents() {

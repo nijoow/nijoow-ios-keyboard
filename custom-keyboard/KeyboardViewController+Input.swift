@@ -346,14 +346,19 @@ extension KeyboardViewController {
 
       let threshold = KeyboardConstants.Interaction.spaceCursorStep
 
-      // 한 프레임 안에 임계값 여러 칸을 이동해도 남은 거리를 버리지 않는다.
-      while abs(accumulatedPanX) >= threshold {
+      // 한 프레임 안에 임계값 여러 칸을 이동해도 남은 거리는 유지하되, 지연 뒤 도착한
+      // 이벤트 하나가 문서 프록시 IPC를 무제한 실행해 메인 런루프를 막지는 않게 한다.
+      var processedSteps = 0
+      while abs(accumulatedPanX) >= threshold,
+        processedSteps < KeyboardConstants.Interaction.maxCursorStepsPerPanEvent
+      {
         let direction = accumulatedPanX > 0 ? 1 : -1
         let movement: CursorMovement = direction > 0 ? .right : .left
         dispatchKeyboardAction(.moveCursor(movement), feedback: .repeatCursor)
 
         // 이동한 만큼의 거리를 뺀 나머지만 남겨서 부드러운 연속 이동 가능케 함
         accumulatedPanX -= CGFloat(direction) * threshold
+        processedSteps += 1
       }
 
     case .ended, .cancelled:
