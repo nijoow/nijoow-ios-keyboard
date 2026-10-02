@@ -11,29 +11,28 @@ extension KeyboardViewController {
     content.addSubview(grid)
     mainContentStack = grid
 
-    for keys in inputLayout.rows(decimalSeparator: Locale.current.decimalSeparator ?? ".") {
+    for keys in numericKeyRows {
       let row = ExpandedHitStackView()
       row.axis = .horizontal
       row.distribution = .fillEqually
       row.spacing = 5
       for value in keys {
         let isDelete = value == KeyboardConstants.KeyID.backspace
-        let button = makeGlassButton(title: isDelete ? "⌫" : value, id: value, isSpecial: isDelete,
-                                     fontSize: layoutMetrics.keyFontSize + 4)
+        let isToggle = value == KeyboardConstants.KeyID.symbol
+        let button = makeGlassButton(title: "", id: value, isSpecial: isDelete || isToggle,
+                                     fontSize: isToggle ? layoutMetrics.keyFontSize : layoutMetrics.keyFontSize + 4)
+        configureNumericKey(button, value: value)
         if isDelete {
           button.accessibilityLabel = "삭제"
           button.addTarget(self, action: #selector(backspaceTouchDown(_:)), for: .touchDown)
           button.addTarget(self, action: #selector(backspaceTouchUp(_:)),
                            for: [.touchUpInside, .touchUpOutside, .touchCancel])
         }
+        if isToggle {
+          button.addTarget(self, action: #selector(symbolTapped), for: .touchUpInside)
+        }
         row.addArrangedSubview(button)
         row.registerKey(button)
-      }
-      if keys.count == 2 {
-        row.distribution = .fill
-        row.arrangedSubviews[0].widthAnchor.constraint(
-          equalTo: row.arrangedSubviews[1].widthAnchor, multiplier: 2, constant: row.spacing
-        ).isActive = true
       }
       grid.addArrangedSubview(row)
     }
@@ -86,4 +85,37 @@ extension KeyboardViewController {
     keyboardContentView.keyRows = grid.arrangedSubviews + [footer]
   }
 
+  private var numericKeyRows: [[String]] {
+    inputLayout.rows(decimalSeparator: Locale.current.decimalSeparator ?? ".",
+                     showsSymbols: showsNumericSymbols)
+  }
+
+  /// 기호 전환은 동일한 버튼을 재사용해 터치 영역과 뷰 계층을 유지한다.
+  func updateNumericKeyLabels() {
+    guard inputLayout == .number, let grid = mainContentStack else { return }
+    UIView.performWithoutAnimation {
+      for (row, values) in zip(grid.arrangedSubviews, numericKeyRows) {
+        guard let row = row as? UIStackView else { continue }
+        for (view, value) in zip(row.arrangedSubviews, values) {
+          guard let button = view as? KeyButton else { continue }
+          configureNumericKey(button, value: value)
+        }
+      }
+    }
+  }
+
+  private func configureNumericKey(_ button: KeyButton, value: String) {
+    button.keyValue = value
+    switch value {
+    case KeyboardConstants.KeyID.symbol:
+      button.setTitle(showsNumericSymbols ? "123" : "#+=", for: .normal)
+      button.accessibilityLabel = showsNumericSymbols ? "숫자 키패드로 전환" : "기호 키패드로 전환"
+    case KeyboardConstants.KeyID.backspace:
+      button.setTitle("⌫", for: .normal)
+      button.accessibilityLabel = "삭제"
+    default:
+      button.setTitle(value, for: .normal)
+      button.accessibilityLabel = value
+    }
+  }
 }

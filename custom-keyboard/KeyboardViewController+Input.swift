@@ -76,8 +76,13 @@ extension KeyboardViewController {
       didPerform = true
     case .toggleSymbols:
       flushHangul()
-      interactionState.toggleSymbols()
-      rebuildKeyboard()
+      if inputLayout == .number {
+        showsNumericSymbols.toggle()
+        updateNumericKeyLabels()
+      } else {
+        interactionState.toggleSymbols()
+        rebuildKeyboard()
+      }
       didPerform = true
     case .toggleEmoji:
       flushHangul()

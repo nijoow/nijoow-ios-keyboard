@@ -24,6 +24,7 @@ class KeyboardViewController: UIInputViewController {
   var composedText = ""
   private var inputDocumentIdentifier: UUID?
   var inputLayout: KeyboardInputLayout = .text
+  var showsNumericSymbols = false
   private var isHostInBackground = false
   var allKeyButtons: [KeyButton] = []
   var shiftButton: KeyButton?
@@ -526,6 +527,7 @@ class KeyboardViewController: UIInputViewController {
     let changed = identifier != nil && inputDocumentIdentifier != nil && identifier != inputDocumentIdentifier
     if let identifier { inputDocumentIdentifier = identifier }
     if changed {
+      showsNumericSymbols = false
       flushHangul()
       inputMutationGeneration &+= 1
       resetTransientInputState()
@@ -535,6 +537,7 @@ class KeyboardViewController: UIInputViewController {
     }
     let layout = KeyboardInputLayout(keyboardType: textDocumentProxy.keyboardType ?? .default)
     if layout != inputLayout {
+      showsNumericSymbols = false
       flushHangul()
       inputLayout = layout
       needsLayoutRebuildOnNextAppearance = true
