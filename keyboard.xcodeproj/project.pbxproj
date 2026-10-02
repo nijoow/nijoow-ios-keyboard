@@ -56,6 +56,15 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A20000012F90000100000001 /* Exceptions for "custom-keyboard" folder in "keyboardTests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				emoji.json,
+				Info.plist,
+				PrivacyInfo.xcprivacy,
+			);
+			target = F15211302F8632F1006DBDF4 /* keyboardTests */;
+		};
 		F152115A2F86337B006DBDF4 /* Exceptions for "custom-keyboard" folder in "custom-keyboard" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -84,6 +93,7 @@
 		F15211532F86337B006DBDF4 /* custom-keyboard */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				A20000012F90000100000001 /* Exceptions for "custom-keyboard" folder in "keyboardTests" target */,
 				F152115A2F86337B006DBDF4 /* Exceptions for "custom-keyboard" folder in "custom-keyboard" target */,
 			);
 			path = "custom-keyboard";
@@ -187,7 +197,9 @@
 				F15211332F8632F1006DBDF4 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
+				A10000012F90000100000001 /* Shared */,
 				A10000022F90000100000002 /* keyboardTests */,
+				F15211532F86337B006DBDF4 /* custom-keyboard */,
 			);
 			name = keyboardTests;
 			packageProductDependencies = (
@@ -494,7 +506,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = keyboard/keyboard.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 2XX8RVN9LS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -530,7 +542,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = keyboard/keyboard.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 2XX8RVN9LS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -564,7 +576,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -585,7 +597,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
@@ -605,7 +617,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = nijoow.custom.keyboard.uitests;
@@ -624,7 +636,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = nijoow.custom.keyboard.uitests;
@@ -644,7 +656,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "custom-keyboard/custom-keyboard.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 2XX8RVN9LS;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "custom-keyboard/Info.plist";
@@ -674,7 +686,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "custom-keyboard/custom-keyboard.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 3;
 				DEVELOPMENT_TEAM = 2XX8RVN9LS;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "custom-keyboard/Info.plist";
