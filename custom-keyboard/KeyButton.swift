@@ -17,6 +17,33 @@ final class KeyButton: UIButton {
   /// 키보드 전환·닫기처럼 화면 전체 상태를 바꾸는 키는 실제 버튼 내부 탭만 허용한다.
   var acceptsGapHitRouting = true
 
+  /// 레이아웃 정렬은 기존 키 표면을 기준으로 유지하고 실제 UIButton 프레임만 여백까지 넓힌다.
+  private(set) var touchExpansion: UIEdgeInsets = .zero
+  override var alignmentRectInsets: UIEdgeInsets { touchExpansion }
+  var visualBounds: CGRect { bounds.inset(by: touchExpansion) }
+  private let surfaceLayer = CALayer()
+  private var surfaceColor: UIColor?
+
+  override var backgroundColor: UIColor? {
+    get { surfaceColor }
+    set {
+      surfaceColor = newValue
+      surfaceLayer.backgroundColor = newValue?.cgColor
+      super.backgroundColor = .clear
+    }
+  }
+
+  func expandTouchArea(_ insets: UIEdgeInsets) {
+    guard abs(touchExpansion.left - insets.left) > 0.01
+      || abs(touchExpansion.right - insets.right) > 0.01
+      || abs(touchExpansion.top - insets.top) > 0.01
+      || abs(touchExpansion.bottom - insets.bottom) > 0.01 else { return }
+    touchExpansion = insets
+    invalidateIntrinsicContentSize()
+    setNeedsLayout()
+    superview?.setNeedsLayout()
+  }
+
   // MARK: - 글래스모피즘 레이어
   // glassBodyLayer: 반투명 바디의 세로 광택(상단 하이라이트 + 하단 음영).
   // rimLayer + rimMaskLayer: 가장자리 림 라이트(상단 밝고 하단 어두운 1px 테두리)로
@@ -61,13 +88,14 @@ final class KeyButton: UIButton {
 
   private func setupLayers() {
     isMultipleTouchEnabled = true
+    layer.insertSublayer(surfaceLayer, at: 0)
 
     // 글래스 바디 그라데이션 (반투명 광택: 상단 림 → 중앙 투명 → 하단 음영)
     glassBodyLayer.locations = [0.0, 0.06, 0.5, 1.0]
     glassBodyLayer.startPoint = CGPoint(x: 0.5, y: 0.0)
     glassBodyLayer.endPoint = CGPoint(x: 0.5, y: 1.0)
     glassBodyLayer.masksToBounds = true  // 그라데이션을 둥근 모서리로 정확히 클립
-    layer.insertSublayer(glassBodyLayer, at: 0)
+    surfaceLayer.insertSublayer(glassBodyLayer, at: 0)
 
     // 가장자리 림 라이트: 세로 그라데이션을 '동심 링' 모양으로 마스킹.
     // 바깥 모서리를 버튼과 같은 반경으로 두어야 코너에서 곡률이 어긋나지 않는다.
@@ -77,7 +105,7 @@ final class KeyButton: UIButton {
     rimMaskLayer.fillColor = UIColor.black.cgColor  // 링 영역만 알파로 통과
     rimMaskLayer.fillRule = .evenOdd
     rimLayer.mask = rimMaskLayer
-    layer.addSublayer(rimLayer)
+    surfaceLayer.addSublayer(rimLayer)
 
     layer.masksToBounds = false
 
@@ -87,28 +115,35 @@ final class KeyButton: UIButton {
   override func layoutSubviews() {
     super.layoutSubviews()
 
+    let visualCenter = CGPoint(x: visualBounds.midX, y: visualBounds.midY)
+    titleLabel?.center = visualCenter
+    imageView?.center = visualCenter
+
     CATransaction.begin()
     CATransaction.setDisableActions(true)
 
     let radius = layer.cornerRadius
-    glassBodyLayer.frame = bounds
+    surfaceLayer.frame = visualBounds
+    surfaceLayer.cornerRadius = radius
+    let surfaceBounds = surfaceLayer.bounds
+    glassBodyLayer.frame = surfaceBounds
     glassBodyLayer.cornerRadius = radius
 
     // 림 라이트(테두리) 경로 갱신 — 동심 링(바깥 반경 = 버튼 반경, 안쪽 = 반경 - 두께)
-    rimLayer.frame = bounds
-    rimMaskLayer.frame = bounds
+    rimLayer.frame = surfaceBounds
+    rimMaskLayer.frame = surfaceBounds
     let ringWidth: CGFloat = 1.0
-    let ringPath = UIBezierPath(roundedRect: bounds, cornerRadius: radius)
+    let ringPath = UIBezierPath(roundedRect: surfaceBounds, cornerRadius: radius)
     ringPath.append(
       UIBezierPath(
-        roundedRect: bounds.insetBy(dx: ringWidth, dy: ringWidth),
+        roundedRect: surfaceBounds.insetBy(dx: ringWidth, dy: ringWidth),
         cornerRadius: max(radius - ringWidth, 0)
       ))
     ringPath.usesEvenOddFillRule = true
     rimMaskLayer.path = ringPath.cgPath
 
     // [성능 최적화] shadowPath 명시적 설정으로 GPU 부하 감소
-    layer.shadowPath = UIBezierPath(roundedRect: bounds, cornerRadius: radius).cgPath
+    layer.shadowPath = UIBezierPath(roundedRect: visualBounds, cornerRadius: radius).cgPath
 
     CATransaction.commit()
   }

@@ -1,8 +1,6 @@
 import UIKit
 import XCTest
 
-@testable import keyboard
-
 @MainActor
 final class KeyboardSettingsTests: XCTestCase {
   func testDefaultSettingsKeepHapticsOff() {

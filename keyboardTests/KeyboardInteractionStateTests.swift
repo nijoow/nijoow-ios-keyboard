@@ -1,7 +1,5 @@
 import XCTest
 
-@testable import keyboard
-
 @MainActor
 final class KeyboardInteractionStateTests: XCTestCase {
   func testCharacterBetweenShiftTapsPreventsUnexpectedShiftLock() {
