@@ -85,7 +85,7 @@ extension KeyboardViewController {
     blur.layer.masksToBounds = true
     popup.addSubview(blur)
 
-    let btnFrame = btn.convert(btn.bounds, to: self.view)
+    let btnFrame = btn.convert(btn.visualBounds, to: self.view)
     let itemWidth: CGFloat = max(btnFrame.width * 1.2, 40)
     let itemHeight: CGFloat = btnFrame.height * 1.2
 
@@ -147,8 +147,9 @@ extension KeyboardViewController {
   }
 
   func insertVariant(_ selected: String) {
+    // 입력창 전환 뒤 예전 팝업이 새 문서를 수정하지 않게 한다.
+    guard !synchronizeInputDocument() else { return }
     if isHangul {
-      // 현재 조합의 마지막 자모를 변체로 교체 후 prefix-diff로 갱신
       performDocumentMutation {
         automata.backspace()
         automata.input(Character(selected))

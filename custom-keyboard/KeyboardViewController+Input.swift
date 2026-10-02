@@ -39,6 +39,7 @@ extension KeyboardViewController {
   func dispatchKeyboardAction(
     _ action: KeyboardAction, feedback: KeyboardActionFeedback = .keyPress
   ) -> Bool {
+    synchronizeInputDocument()
     if action != .shift && action != .lockShift {
       interactionState.cancelShiftTapCandidate()
     }
@@ -123,7 +124,7 @@ extension KeyboardViewController {
   func handleCharacterInput(_ key: String) -> Bool {
     guard let ch = key.first else { return false }
 
-    if isHangul && ch.isLetter && !isSymbol {
+    if isHangul && ch.isLetter && !isSymbol && !inputLayout.isNumeric {
       inputHangul(ch)
     } else {
       flushHangul()
@@ -154,38 +155,24 @@ extension KeyboardViewController {
       return
     }
 
-    // selectionDidChange 억제: 내부 조작 중 automata 리셋 방지
     performDocumentMutation {
       automata.input(jamo)
       renderComposing()
     }
   }
 
-  /// 조합 중인 한글을 prefix-diff로 문서에 최소 변경 반영한다.
-  ///
-  /// 기존 구현은 매 키 입력마다 조합 문자열 '전체'를 deleteBackward로 지우고 재삽입했다.
-  /// 조합은 띄어쓰기 전까지 누적되므로 단어가 길어질수록 입력 한 번에 필요한 proxy IPC가
-  /// O(n)으로 늘어나, 빠르게 칠수록 키가 씹혔다. 여기서는 직전 조합 문자열과의 공통 접두사를
-  /// 보존하고 바뀐 꼬리만 지우고 다시 넣어, 입력당 proxy 연산을 O(1)로 만든다.
-  /// 반드시 `performDocumentMutation` 안에서 호출해야 한다.
+  /// 변경 전 입력 방식: 공통 접두사를 보존하고 바뀐 꼬리만 삭제·삽입한다.
+  /// OS의 marked 범위는 사용하지 않는다.
   func renderComposing() {
     let newComposed = automata.compose()
     let common = commonPrefixCount(composedText, newComposed)
-
     let deleteCount = composedText.count - common
-    for _ in 0..<deleteCount {
-      deleteBackwardThroughProxy()
-    }
-
+    for _ in 0..<deleteCount { deleteBackwardThroughProxy() }
     let insertPart = String(newComposed.dropFirst(common))
-    if !insertPart.isEmpty {
-      insertTextThroughProxy(insertPart)
-    }
-
+    if !insertPart.isEmpty { insertTextThroughProxy(insertPart) }
     composedText = newComposed
   }
 
-  /// 두 문자열이 앞에서부터 공유하는 Character 개수.
   func commonPrefixCount(_ a: String, _ b: String) -> Int {
     var count = 0
     var i = a.startIndex
@@ -199,8 +186,7 @@ extension KeyboardViewController {
   }
 
   func flushHangul() {
-    // 이미 insertText로 들어가 있으므로 상태만 초기화
-    // isHangul guard 제거: 어떤 모드에서든 안전하게 상태를 초기화할 수 있도록 함
+    // 표시된 글자는 이미 문서에 있으므로 내부 조합만 초기화한다.
     automata.reset()
     composedText = ""
   }
@@ -443,10 +429,9 @@ extension KeyboardViewController {
   private func handleBackspace() -> Bool {
     var didDelete = false
     performDocumentMutation {
-      if isHangul && !isSymbol {
+      if isHangul && !isSymbol && !inputLayout.isNumeric {
         // 한글 조합 중일 때 (스택에 자모가 남아있음)
         if !automata.jamoStack.isEmpty {
-          // 자모 하나를 제거하고 prefix-diff로 바뀐 부분만 갱신
           automata.backspace()
           renderComposing()
           didDelete = true
@@ -495,8 +480,13 @@ extension KeyboardViewController {
   private func scheduleInputTimer(
     interval: TimeInterval, repeats: Bool, action: @escaping @MainActor () -> Void
   ) -> Timer {
-    let timer = Timer(timeInterval: interval, repeats: repeats) { _ in
+    let documentIdentifier = currentDocumentIdentifier()
+    let timer = Timer(timeInterval: interval, repeats: repeats) { [weak self] timer in
       MainActor.assumeIsolated {
+        guard let self, self.currentDocumentIdentifier() == documentIdentifier else {
+          timer.invalidate()
+          return
+        }
         action()
       }
     }

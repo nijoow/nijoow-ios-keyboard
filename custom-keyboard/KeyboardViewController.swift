@@ -1,5 +1,6 @@
 import UIKit
 import os.log
+import Darwin
 
 private let logger = OSLog(subsystem: "com.nijoow.keyboard", category: "lifecycle")
 
@@ -20,9 +21,10 @@ class KeyboardViewController: UIInputViewController {
   var popupTargetGeneration: UInt64?
 
   let automata = HangulAutomata()
-  /// 현재 문서에 표시 중인 한글 조합 문자열(밑줄 없는 조합 구현용).
-  /// prefix-diff 삭제/삽입의 기준이 된다. flush 시 빈 문자열로 초기화.
-  var composedText: String = ""
+  var composedText = ""
+  private var inputDocumentIdentifier: UUID?
+  var inputLayout: KeyboardInputLayout = .text
+  private var isHostInBackground = false
   var allKeyButtons: [KeyButton] = []
   var shiftButton: KeyButton?
   var spaceButton: KeyButton?
@@ -36,6 +38,9 @@ class KeyboardViewController: UIInputViewController {
   var bottomRow: UIView?
   var mainContentStack: UIStackView?
   var customKeyboardView: CustomKeyboardView?
+  let keyboardContentView = KeyboardHitAreaView()
+  var contentHeightConstraint: NSLayoutConstraint?
+  var contentMaximumHeightConstraint: NSLayoutConstraint?
 
   // 키보드 전체 높이를 확정하는 제약 (priority 999). 점프 방지의 핵심.
   var keyboardHeightConstraint: NSLayoutConstraint?
@@ -73,6 +78,7 @@ class KeyboardViewController: UIInputViewController {
   var isLayoutTransitionInProgress = false
   var isKeyboardVisible = false
   var needsLayoutRebuildOnNextAppearance = false
+  private var layoutPassCount = 0
 
   var currentLayoutWidth: CGFloat {
     if let layoutReferenceWidth, layoutReferenceWidth > 0 { return layoutReferenceWidth }
@@ -233,9 +239,18 @@ class KeyboardViewController: UIInputViewController {
   override func viewDidLoad() {
     super.viewDidLoad()
 
+    keyboardContentView.translatesAutoresizingMaskIntoConstraints = false
+    keyboardContentView.backgroundColor = .clear
+    keyboardContentView.isOpaque = false
+    view.addSubview(keyboardContentView)
+    NSLayoutConstraint.activate([
+      keyboardContentView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+      keyboardContentView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+      keyboardContentView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+    ])
     reloadKeyboardSettings()
     updateLayoutReferenceWidth(view.bounds.width)
-
+    synchronizeInputDocument()
     buildKeyboard()
 
     NotificationCenter.default.addObserver(
@@ -260,11 +275,13 @@ class KeyboardViewController: UIInputViewController {
 
   override func viewWillAppear(_ animated: Bool) {
     super.viewWillAppear(animated)
+    isHostInBackground = false
     isKeyboardVisible = true
     KeyboardInputDiagnostics.shared.beginSession()
     let heightChanged = reloadKeyboardSettings()
     KeyboardPreferencesStore.recordExtensionActivation(hasFullAccess: hasFullAccess)
     let widthClassChanged = updateLayoutReferenceWidth(view.bounds.width)
+    synchronizeInputDocument()
     resetKeyboardState()
     let shouldRebuild =
       heightChanged || widthClassChanged || needsLayoutRebuildOnNextAppearance
@@ -294,8 +311,9 @@ class KeyboardViewController: UIInputViewController {
 
     // viewWillAppear 때 아직 확정 폭을 받지 못한 iPad 플로팅/분할 화면은 첫 레이아웃
     // 직전에 보정한다. 다음 run loop로 미루면 한 프레임 동안 잘못된 높이가 보여 점프한다.
-    guard !isLayoutTransitionInProgress else { return }
-    guard updateLayoutReferenceWidth(view.bounds.width) else { return }
+    guard !isHostInBackground, !isLayoutTransitionInProgress else { return }
+    let widthChanged = updateLayoutReferenceWidth(view.bounds.width)
+    guard widthChanged || needsLayoutRebuildOnNextAppearance || !hasKeyboardViewHierarchy else { return }
     guard isKeyboardVisible else {
       needsLayoutRebuildOnNextAppearance = true
       return
@@ -307,9 +325,35 @@ class KeyboardViewController: UIInputViewController {
     UIView.performWithoutAnimation {
       installKeyboardHeightConstraint()
       buildKeyboard()
+      needsLayoutRebuildOnNextAppearance = false
       updateKeyLabels()
       updateAppearance()
     }
+  }
+
+  override func viewDidLayoutSubviews() {
+    super.viewDidLayoutSubviews()
+    keyboardContentView.updateKeyTouchAreas()
+    layoutPassCount += 1
+    // 입력 내용 없이 크기 협상 횟수와 실제 메모리만 제한적으로 기록한다.
+    if [1, 16, 128, 1024].contains(layoutPassCount) {
+      os_log("Keyboard layout pass=%{public}d hitUpdates=%{public}d footprintMB=%{public}.1f width=%{public}.1f height=%{public}.1f",
+             log: logger, type: .default, layoutPassCount,
+             keyboardContentView.touchAreaUpdateCount, memoryFootprintMB(),
+             Double(view.bounds.width), Double(view.bounds.height))
+    }
+  }
+
+  private func memoryFootprintMB() -> Double {
+    var info = task_vm_info_data_t()
+    var count = mach_msg_type_number_t(MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+    let capacity = Int(count)
+    let result = withUnsafeMutablePointer(to: &info) { pointer in
+      pointer.withMemoryRebound(to: integer_t.self, capacity: capacity) {
+        task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+      }
+    }
+    return result == KERN_SUCCESS ? Double(info.phys_footprint) / 1_048_576 : -1
   }
 
   // 기기 회전 대응: 방향이 바뀌면 메트릭이 달라지므로 높이 제약을 갱신하고
@@ -350,16 +394,16 @@ class KeyboardViewController: UIInputViewController {
     os_log("🛑 viewWillDisappear", log: logger, type: .default)
     // 전환 애니메이션 중에는 뷰 계층을 유지하되 입력 타이머와 Taptic 자원은 즉시 멈춘다.
     resetTransientInputState()
+    flushHangul()
     KeyboardHaptics.shared.suspend()
   }
 
   override func viewDidDisappear(_ animated: Bool) {
     super.viewDidDisappear(animated)
-    // iOS는 닫힌 키보드 확장 프로세스를 계속 재사용할 수 있다. 보이지 않는 동안
-    // 기본 키의 글래스/그림자 레이어까지 내려 메모리 압박에 의한 종료 가능성을 줄인다.
-    releaseKeyboardViewHierarchy()
+    // 기본 키 계층은 재사용한다. 호스트마다 다른 appear/active 순서에 복구를 의존하지 않는다.
+    removeCustomPanel()
     EmojiProvider.shared.unloadData()
-    os_log("⏹ viewDidDisappear resources released", log: logger, type: .default)
+    os_log("⏹ viewDidDisappear optional resources released", log: logger, type: .default)
   }
 
   override func didReceiveMemoryWarning() {
@@ -369,7 +413,7 @@ class KeyboardViewController: UIInputViewController {
     // 이미 내려간 상태라면 전체 키 계층까지 즉시 해제한다.
     resetTransientInputState()
     KeyboardHaptics.shared.suspend()
-    if isKeyboardVisible {
+    if isKeyboardVisible && !isHostInBackground {
       removeCustomPanel()
     } else {
       releaseKeyboardViewHierarchy()
@@ -381,20 +425,31 @@ class KeyboardViewController: UIInputViewController {
   /// 보내거나 VC를 그대로 보존한다. 이 경로에서도 반복 입력과 선택 패널을 정리한다.
   @objc private func extensionHostDidEnterBackground() {
     os_log("🌙 extension host did enter background", log: logger, type: .default)
+    isHostInBackground = true
+    resetTransientInputState()
+    flushHangul()
     KeyboardHaptics.shared.suspend()
     removeCustomPanel()
     EmojiProvider.shared.unloadData()
-    // disappear 콜백이 생략되는 호스트에서도 백그라운드 동안 무거운 키 레이어를
-    // 유지하지 않는다. `isKeyboardVisible`은 그대로 둬 active 콜백의 복구 판단에 쓴다.
-    releaseKeyboardViewHierarchy()
   }
 
   /// VC가 사라지지 않은 채 호스트만 다시 활성화되는 경로에서는 해제한 계층을 즉시
   /// 복원한다. 일반 재등장 경로는 `viewWillAppear`가 같은 역할을 한다.
   @objc private func extensionHostDidBecomeActive() {
-    guard isKeyboardVisible else { return }
+    isHostInBackground = false
+    guard isViewLoaded, view.window != nil else { return }
+    restoreVisibleKeyboard()
+  }
 
-    if !hasKeyboardViewHierarchy {
+  override func viewDidAppear(_ animated: Bool) {
+    super.viewDidAppear(animated)
+    restoreVisibleKeyboard()
+  }
+
+  private func restoreVisibleKeyboard() {
+    isKeyboardVisible = true
+    synchronizeInputDocument()
+    if needsLayoutRebuildOnNextAppearance || !hasKeyboardViewHierarchy {
       _ = reloadKeyboardSettings()
       _ = updateLayoutReferenceWidth(view.bounds.width)
       resetKeyboardState()
@@ -417,12 +472,15 @@ class KeyboardViewController: UIInputViewController {
   override func textDidChange(_ textInput: UITextInput?) {
     super.textDidChange(textInput)
     guard !isPerformingDocumentMutation else { return }
+    synchronizeInputDocument()
     reconcileCompositionWithDocument()
+    refreshInputLayoutIfNeeded()
   }
 
   override func selectionDidChange(_ textInput: UITextInput?) {
     super.selectionDidChange(textInput)
     guard !isPerformingDocumentMutation else { return }
+    synchronizeInputDocument()
     reconcileCompositionWithDocument()
   }
 
@@ -462,24 +520,57 @@ class KeyboardViewController: UIInputViewController {
     }
   }
 
-  /// 키보드가 일으킨 문서 콜백은 조합을 유지하고, 외부 편집/커서 이동으로 실제 문서가
-  /// 달라졌을 때만 조합 상태를 끝낸다. 동기 플래그만으로는 늦게 도착하는 호스트 앱의
-  /// 콜백을 구분할 수 없으므로 문서의 현재 접미사와 직접 대조한다.
+  @discardableResult
+  func synchronizeInputDocument() -> Bool {
+    let identifier = currentDocumentIdentifier()
+    let changed = identifier != nil && inputDocumentIdentifier != nil && identifier != inputDocumentIdentifier
+    if let identifier { inputDocumentIdentifier = identifier }
+    if changed {
+      flushHangul()
+      inputMutationGeneration &+= 1
+      resetTransientInputState()
+      interactionState.leaveEmojiPanel()
+      interactionState.resetShift()
+      needsLayoutRebuildOnNextAppearance = true
+    }
+    let layout = KeyboardInputLayout(keyboardType: textDocumentProxy.keyboardType ?? .default)
+    if layout != inputLayout {
+      flushHangul()
+      inputLayout = layout
+      needsLayoutRebuildOnNextAppearance = true
+    }
+    return changed
+  }
+
+  /// `UITextDocumentProxy.documentIdentifier`는 Swift 선언상 non-optional이지만 일부 호스트는
+  /// viewDidLoad 시점에 Objective-C nil을 반환한다. 정적 프로퍼티 접근은 UUID 강제 브리지에서
+  /// trap이 발생하므로 런타임 메시지로 nullable 값을 안전하게 읽는다.
+  func currentDocumentIdentifier() -> UUID? {
+    let selector = NSSelectorFromString("documentIdentifier")
+    let proxy = textDocumentProxy as AnyObject
+    guard proxy.responds(to: selector),
+      let value = proxy.perform(selector)?.takeUnretainedValue()
+    else { return nil }
+    if let identifier = value as? NSUUID { return identifier as UUID }
+    return value as? UUID
+  }
+
+  /// 변경 전의 문서 접미사 검증을 복원한다. 내부 편집의 동기 콜백은 호출부에서 제외한다.
   private func reconcileCompositionWithDocument() {
     guard !composedText.isEmpty else { return }
     guard let context = textDocumentProxy.documentContextBeforeInput, !context.isEmpty else {
       flushHangul()
       return
     }
-
-    // 일부 호스트 앱은 커서 앞 문맥을 일정 길이로 잘라 제공한다. 조합 문자열이 그보다
-    // 길더라도 보이는 범위의 접미사가 같으면 현재 조합이 유지된 것으로 판단한다.
     let visibleComposition = composedText.suffix(context.count)
-    guard context.hasSuffix(visibleComposition)
-    else {
+    if !context.hasSuffix(visibleComposition) {
       flushHangul()
-      return
     }
+  }
+
+  private func refreshInputLayoutIfNeeded() {
+    guard isKeyboardVisible, !isHostInBackground, needsLayoutRebuildOnNextAppearance else { return }
+    view.setNeedsLayout()
   }
 
   deinit {

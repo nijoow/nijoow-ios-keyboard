@@ -7,6 +7,11 @@ extension KeyboardViewController {
   func buildKeyboard() {
     resetTransientInputState()
     clearKeyboardViewHierarchy()
+    if inputLayout.isNumeric {
+      buildNumericKeyboard()
+      return
+    }
+    let view = keyboardContentView
 
     // 1. 바톰 행 (하단 고정)
     let botRow = makeBottomRow()
@@ -49,6 +54,7 @@ extension KeyboardViewController {
     // 5. 시작 가시성 적용
     updatePanelVisibility()
     lastRenderedPanel = interactionState.panel
+    keyboardContentView.keyRows = [utilRow] + contentStack.arrangedSubviews + [botRow]
   }
 
   /// 화면에서 내려간 키보드의 Core Animation 계층과 제약을 해제한다.
@@ -60,12 +66,13 @@ extension KeyboardViewController {
   }
 
   var hasKeyboardViewHierarchy: Bool {
-    utilityRow != nil && mainContentStack != nil && bottomRow != nil
+    mainContentStack != nil && bottomRow != nil && (inputLayout.isNumeric || utilityRow != nil)
   }
 
   /// 컨트롤러의 루트에는 시스템이 관리할 수 있는 뷰가 섞일 수 있으므로 `view.subviews`
   /// 전체를 지우지 않고, 이 키보드가 소유한 계층만 명시적으로 정리한다.
   private func clearKeyboardViewHierarchy() {
+    keyboardContentView.keyRows.removeAll()
     removeCustomPanel(resetMode: false)
     utilityRow?.removeFromSuperview()
     mainContentStack?.removeFromSuperview()
@@ -88,6 +95,18 @@ extension KeyboardViewController {
   /// 첫 활성화는 viewWillAppear에서 하고, 이후에는 콘텐츠 재구성보다 먼저 높이를 바꾼다.
   func installKeyboardHeightConstraint() {
     let targetHeight = desiredKeyboardHeight
+    if let height = contentHeightConstraint, let maximum = contentMaximumHeightConstraint {
+      height.constant = targetHeight
+      maximum.constant = targetHeight
+    } else {
+      let height = keyboardContentView.heightAnchor.constraint(equalToConstant: targetHeight)
+      height.priority = UILayoutPriority(998)
+      let maximum = keyboardContentView.heightAnchor.constraint(lessThanOrEqualToConstant: targetHeight)
+      let fits = keyboardContentView.heightAnchor.constraint(lessThanOrEqualTo: view.heightAnchor)
+      NSLayoutConstraint.activate([height, maximum, fits])
+      contentHeightConstraint = height
+      contentMaximumHeightConstraint = maximum
+    }
     if let c = keyboardHeightConstraint {
       if abs(c.constant - targetHeight) > 0.5 {
         c.constant = targetHeight
@@ -137,6 +156,7 @@ extension KeyboardViewController {
   }
 
   private func setupCustomPanel(above botRow: UIView) {
+    let view = keyboardContentView
     let customView = CustomKeyboardView(palette: themePalette)
     customView.delegate = self
     customView.translatesAutoresizingMaskIntoConstraints = false
@@ -158,6 +178,7 @@ extension KeyboardViewController {
 
   private func setupMainContentStack(above botRow: UIView) -> UIStackView {
     if let existing = mainContentStack { return existing }
+    let view = keyboardContentView
 
     let contentStack = ExpandedHitStackView()
     contentStack.axis = .vertical
